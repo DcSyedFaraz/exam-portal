@@ -38,7 +38,28 @@ Route::prefix('admin')
 
         // Students
         Route::get('students',                          [Admin\StudentController::class, 'index'])->name('students.index');
+        Route::get('students/create',                   [Admin\StudentController::class, 'create'])->name('students.create');
+        Route::post('students',                         [Admin\StudentController::class, 'store'])->name('students.store');
+        Route::get('students/{user}',                   [Admin\StudentController::class, 'show'])->name('students.show');
+        Route::get('students/{user}/edit',              [Admin\StudentController::class, 'edit'])->name('students.edit');
+        Route::put('students/{user}',                   [Admin\StudentController::class, 'update'])->name('students.update');
+        Route::post('students/{user}/reset-pin',        [Admin\StudentController::class, 'resetPin'])->name('students.reset-pin');
         Route::post('students/{user}/toggle-active',    [Admin\StudentController::class, 'toggleActive'])->name('students.toggle-active');
+
+        // Parents
+        Route::get('parents',                           [Admin\ParentController::class, 'index'])->name('parents.index');
+        Route::get('parents/create',                    [Admin\ParentController::class, 'create'])->name('parents.create');
+        Route::post('parents',                          [Admin\ParentController::class, 'store'])->name('parents.store');
+        Route::get('parents/{user}',                    [Admin\ParentController::class, 'show'])->name('parents.show');
+        Route::get('parents/{user}/edit',               [Admin\ParentController::class, 'edit'])->name('parents.edit');
+        Route::put('parents/{user}',                    [Admin\ParentController::class, 'update'])->name('parents.update');
+        Route::post('parents/{user}/toggle-active',     [Admin\ParentController::class, 'toggleActive'])->name('parents.toggle-active');
+        Route::post('parents/{user}/add-student',       [Admin\ParentController::class, 'addStudent'])->name('parents.add-student');
+        Route::delete('parents/{user}/remove-student/{profile}', [Admin\ParentController::class, 'removeStudent'])->name('parents.remove-student');
+
+        // Profile
+        Route::get('profile',  [Admin\ProfileController::class, 'edit'])->name('profile.edit');
+        Route::put('profile',  [Admin\ProfileController::class, 'update'])->name('profile.update');
 
         // Results
         Route::get('results', [Admin\ResultController::class, 'index'])->name('results.index');
@@ -55,6 +76,11 @@ Route::prefix('parent')
         Route::get('students/create',                   [ParentPanel\StudentController::class, 'create'])->name('students.create');
         Route::post('students',                         [ParentPanel\StudentController::class, 'store'])->name('students.store');
         Route::get('students/{profile}/results',        [ParentPanel\StudentController::class, 'results'])->name('students.results');
+        Route::post('students/{profile}/reset-pin',     [ParentPanel\StudentController::class, 'resetPin'])->name('students.reset-pin');
+
+        // Profile
+        Route::get('profile', [ParentPanel\ProfileController::class, 'edit'])->name('profile.edit');
+        Route::put('profile', [ParentPanel\ProfileController::class, 'update'])->name('profile.update');
     });
 
 // ─── Student ──────────────────────────────────────────────────────────────────

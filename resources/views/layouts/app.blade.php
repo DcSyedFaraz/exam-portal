@@ -53,5 +53,8 @@
 {{-- Sidebar overlay for mobile --}}
 <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-40 hidden lg:hidden"></div>
 
+{{-- Modals (rendered outside overflow containers so fixed positioning works correctly) --}}
+@stack('modals')
+
 </body>
 </html>

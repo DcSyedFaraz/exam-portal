@@ -37,10 +37,24 @@
                 Students
             </a>
 
+            <a href="{{ route('admin.parents.index') }}"
+               class="{{ request()->routeIs('admin.parents.*') ? 'sidebar-link-active' : 'sidebar-link' }}">
+                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0"/></svg>
+                Parents
+            </a>
+
             <a href="{{ route('admin.results.index') }}"
                class="{{ request()->routeIs('admin.results.*') ? 'sidebar-link-active' : 'sidebar-link' }}">
                 <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
                 Results
+            </a>
+
+            <p class="text-gray-500 text-xs uppercase tracking-widest px-4 pt-4 pb-1">Account</p>
+
+            <a href="{{ route('admin.profile.edit') }}"
+               class="{{ request()->routeIs('admin.profile.*') ? 'sidebar-link-active' : 'sidebar-link' }}">
+                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                My Profile
             </a>
 
         @elseif(auth()->user()->hasRole('parent'))
@@ -64,6 +78,14 @@
                class="{{ request()->routeIs('parent.students.create') ? 'sidebar-link-active' : 'sidebar-link' }}">
                 <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></svg>
                 Add Student
+            </a>
+
+            <p class="text-gray-500 text-xs uppercase tracking-widest px-4 pt-4 pb-1">Account</p>
+
+            <a href="{{ route('parent.profile.edit') }}"
+               class="{{ request()->routeIs('parent.profile.*') ? 'sidebar-link-active' : 'sidebar-link' }}">
+                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                My Profile
             </a>
 
         @elseif(auth()->user()->hasRole('student'))

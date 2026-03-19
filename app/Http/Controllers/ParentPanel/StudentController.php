@@ -8,6 +8,7 @@ use App\Models\ExamAttempt;
 use App\Models\StudentProfile;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\View\View;
@@ -62,6 +63,19 @@ class StudentController extends Controller
                 'name'           => $request->name,
                 'student_number' => $studentNumber,
             ]);
+    }
+
+    public function resetPin(Request $request, StudentProfile $profile): RedirectResponse
+    {
+        abort_unless($profile->parent_id === auth()->id(), 403);
+
+        $request->validate([
+            'pin' => ['required', 'digits:4', 'confirmed'],
+        ]);
+
+        $profile->update(['pin' => Hash::make($request->pin)]);
+
+        return back()->with('success', "PIN updated for {$profile->user->name}.");
     }
 
     public function results(StudentProfile $profile): View

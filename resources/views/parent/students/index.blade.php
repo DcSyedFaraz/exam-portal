@@ -54,12 +54,103 @@
                 </div>
             @endif
 
-            <a href="{{ route('parent.students.results', $child) }}"
-               class="btn-secondary w-full justify-center text-sm">
-                View All Results
-            </a>
+            <div class="flex gap-2 mt-1">
+                <a href="{{ route('parent.students.results', $child) }}"
+                   class="btn-secondary flex-1 justify-center text-sm">
+                    View Results
+                </a>
+                <button onclick="openPinModal({{ $child->id }}, '{{ $child->student_number }}')"
+                        class="btn-secondary flex-1 justify-center text-sm">
+                    Reset PIN
+                </button>
+            </div>
         </div>
         @endforeach
     </div>
 @endif
+
+{{-- PIN reset route map (profile id → url) --}}
+@php
+$pinRoutes = $children->mapWithKeys(fn($c) => [$c->id => route('parent.students.reset-pin', $c)])->toJson();
+@endphp
+
+<script>
+const pinRoutes = @json(json_decode($pinRoutes));
+
+function openPinModal(profileId, studentNumber) {
+    document.getElementById('pin-modal-number').textContent = studentNumber;
+    document.getElementById('pin-form').action = pinRoutes[profileId];
+    document.getElementById('pin').value = '';
+    document.getElementById('pin_confirmation').value = '';
+    document.getElementById('pin-error').classList.add('hidden');
+    document.getElementById('pin-modal').classList.remove('hidden');
+}
+function closePinModal() {
+    document.getElementById('pin-modal').classList.add('hidden');
+}
+function toggleVisibility(fieldId, btn) {
+    const input = document.getElementById(fieldId);
+    input.type = input.type === 'password' ? 'text' : 'password';
+}
+</script>
 @endsection
+
+@push('modals')
+<div id="pin-modal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+
+        {{-- Header --}}
+        <div class="bg-yellow-400 px-6 pt-8 pb-6 text-center relative">
+            <button onclick="closePinModal()" class="absolute top-4 right-4 text-gray-700/60 hover:text-gray-900 transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+            <div class="w-14 h-14 rounded-full bg-white/30 flex items-center justify-center mx-auto mb-3">
+                <svg class="w-7 h-7 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                </svg>
+            </div>
+            <h3 class="text-lg font-bold font-heading text-gray-900">Reset PIN</h3>
+            <p class="text-sm text-gray-700 mt-1">Student: <strong id="pin-modal-number"></strong></p>
+        </div>
+
+        {{-- Form --}}
+        <form id="pin-form" method="POST" class="px-6 py-6 space-y-4">
+            @csrf
+
+            <div>
+                <label class="form-label">New PIN <span class="text-red-500">*</span></label>
+                <div class="flex items-center border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-yellow-400 focus-within:border-transparent transition overflow-hidden">
+                    <input id="pin" type="password" name="pin" maxlength="4" inputmode="numeric"
+                           class="flex-1 px-3 py-2 text-sm tracking-[0.5em] text-center font-bold outline-none bg-transparent"
+                           placeholder="••••" autocomplete="off">
+                    <button type="button" onclick="toggleVisibility('pin')"
+                            class="px-3 text-gray-400 hover:text-gray-600 shrink-0">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                    </button>
+                </div>
+            </div>
+
+            <div>
+                <label class="form-label">Confirm PIN <span class="text-red-500">*</span></label>
+                <div class="flex items-center border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-yellow-400 focus-within:border-transparent transition overflow-hidden">
+                    <input id="pin_confirmation" type="password" name="pin_confirmation" maxlength="4" inputmode="numeric"
+                           class="flex-1 px-3 py-2 text-sm tracking-[0.5em] text-center font-bold outline-none bg-transparent"
+                           placeholder="••••" autocomplete="off">
+                    <button type="button" onclick="toggleVisibility('pin_confirmation')"
+                            class="px-3 text-gray-400 hover:text-gray-600 shrink-0">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                    </button>
+                </div>
+            </div>
+
+            <p id="pin-error" class="text-red-500 text-xs hidden"></p>
+
+            <div class="flex gap-3 pt-2">
+                <button type="submit" class="btn-primary flex-1 justify-center">Save PIN</button>
+                <button type="button" onclick="closePinModal()" class="btn-secondary flex-1 justify-center">Cancel</button>
+            </div>
+        </form>
+
+    </div>
+</div>
+@endpush

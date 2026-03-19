@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('student_profiles', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('parent_id')->constrained('users')->cascadeOnDelete();
+            $table->foreignId('parent_id')->nullable()->constrained('users')->nullOnDelete();
             $table->string('student_number')->unique();
             $table->string('pin');
             $table->timestamps();

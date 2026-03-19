@@ -150,25 +150,6 @@
     </div>
 </div>
 
-{{-- Confirm Submit Modal --}}
-<div id="confirm-modal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center">
-        <span class="text-4xl mb-3 block">🚀</span>
-        <h3 class="text-lg font-bold font-heading text-gray-900 mb-2">Submit Exam?</h3>
-        <p class="text-gray-500 text-sm mb-6">Once submitted, you cannot change your answers.</p>
-        <div class="flex gap-3">
-            <button onclick="document.getElementById('exam-form').submit()"
-                    class="btn-primary flex-1 justify-center">
-                Yes, Submit
-            </button>
-            <button onclick="document.getElementById('confirm-modal').classList.add('hidden')"
-                    class="btn-secondary flex-1 justify-center">
-                Cancel
-            </button>
-        </div>
-    </div>
-</div>
-
 <script>
 const totalQuestions = {{ $questions->count() }};
 const answeredQuestions = new Set();
@@ -221,3 +202,24 @@ document.querySelectorAll('.answer-radio').forEach(radio => {
 });
 </script>
 @endsection
+
+@push('modals')
+{{-- Confirm Submit Modal --}}
+<div id="confirm-modal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center">
+        <span class="text-4xl mb-3 block">🚀</span>
+        <h3 class="text-lg font-bold font-heading text-gray-900 mb-2">Submit Exam?</h3>
+        <p class="text-gray-500 text-sm mb-6">Once submitted, you cannot change your answers.</p>
+        <div class="flex gap-3">
+            <button onclick="document.getElementById('exam-form').submit()"
+                    class="btn-primary flex-1 justify-center">
+                Yes, Submit
+            </button>
+            <button onclick="document.getElementById('confirm-modal').classList.add('hidden')"
+                    class="btn-secondary flex-1 justify-center">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+@endpush

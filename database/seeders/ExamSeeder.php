@@ -12,7 +12,7 @@ class ExamSeeder extends Seeder
 {
     public function run(): void
     {
-        $admin = User::where('email', 'admin@exam.com')->first();
+        $admin = User::where('email', 'admin@gmail.com')->first();
 
         // ==========================================
         // Exam 1: MCQ Only

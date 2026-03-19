@@ -7,8 +7,11 @@
 @section('content')
 <div class="card">
     <div class="flex items-center justify-between mb-4">
-        <h3 class="text-base font-semibold font-heading">All Students</h3>
-        <p class="text-sm text-gray-500">{{ $students->total() }} student(s)</p>
+        <h3 class="text-base font-semibold font-heading">All Students <span class="text-gray-400 font-normal text-sm">({{ $students->total() }})</span></h3>
+        <a href="{{ route('admin.students.create') }}" class="btn-primary text-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Add Student
+        </a>
     </div>
 
     @if($students->isEmpty())
@@ -27,14 +30,15 @@
                 </thead>
                 <tbody>
                     @foreach($students as $i => $student)
-                    <tr class="{{ $i % 2 === 0 ? 'table-row-even' : 'table-row-odd' }} hover:bg-yellow-50 transition-colors"
-                        id="student-row-{{ $student->id }}">
+                    <tr class="{{ $i % 2 === 0 ? 'table-row-even' : 'table-row-odd' }} hover:bg-yellow-50 transition-colors">
                         <td class="px-4 py-3">
                             <div class="flex items-center gap-3">
                                 <div class="w-8 h-8 rounded-full bg-yellow-400 flex items-center justify-center text-gray-900 font-bold text-xs shrink-0">
                                     {{ strtoupper(substr($student->name, 0, 1)) }}
                                 </div>
-                                <span class="font-medium text-gray-900">{{ $student->name }}</span>
+                                <a href="{{ route('admin.students.show', $student) }}" class="font-medium text-gray-900 hover:text-yellow-600 transition">
+                                    {{ $student->name }}
+                                </a>
                             </div>
                         </td>
                         <td class="px-4 py-3 font-mono text-xs text-gray-600">
@@ -50,14 +54,19 @@
                             </span>
                         </td>
                         <td class="px-4 py-3 text-center">
-                            <button
-                                id="toggle-btn-{{ $student->id }}"
-                                onclick="toggleActive({{ $student->id }}, this)"
-                                data-url="{{ route('admin.students.toggle-active', $student) }}"
-                                data-active="{{ $student->is_active ? 'true' : 'false' }}"
-                                class="text-xs px-3 py-1.5 rounded transition {{ $student->is_active ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-green-100 text-green-700 hover:bg-green-200' }}">
-                                {{ $student->is_active ? 'Deactivate' : 'Activate' }}
-                            </button>
+                            <div class="flex items-center justify-center gap-2">
+                                <a href="{{ route('admin.students.show', $student) }}"
+                                   class="text-xs px-3 py-1.5 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 transition">View</a>
+                                <a href="{{ route('admin.students.edit', $student) }}"
+                                   class="text-xs px-3 py-1.5 rounded bg-yellow-100 text-yellow-700 hover:bg-yellow-200 transition">Edit</a>
+                                <button
+                                    id="toggle-btn-{{ $student->id }}"
+                                    onclick="toggleActive({{ $student->id }}, this)"
+                                    data-url="{{ route('admin.students.toggle-active', $student) }}"
+                                    class="text-xs px-3 py-1.5 rounded transition {{ $student->is_active ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-green-100 text-green-700 hover:bg-green-200' }}">
+                                    {{ $student->is_active ? 'Deactivate' : 'Activate' }}
+                                </button>
+                            </div>
                         </td>
                     </tr>
                     @endforeach
@@ -72,18 +81,14 @@
 async function toggleActive(id, btn) {
     const url = btn.dataset.url;
     const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
-
     try {
         const res  = await fetch(url, { method: 'POST', headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' } });
         const data = await res.json();
-
         const badge = document.getElementById('status-badge-' + id);
         badge.textContent = data.active ? 'Active' : 'Inactive';
         badge.className   = data.active ? 'badge-pass' : 'badge-fail';
-
-        btn.textContent = data.active ? 'Deactivate' : 'Activate';
-        btn.className   = `text-xs px-3 py-1.5 rounded transition ${data.active ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-green-100 text-green-700 hover:bg-green-200'}`;
-        btn.dataset.active = data.active ? 'true' : 'false';
+        btn.textContent   = data.active ? 'Deactivate' : 'Activate';
+        btn.className     = `text-xs px-3 py-1.5 rounded transition ${data.active ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-green-100 text-green-700 hover:bg-green-200'}`;
     } catch (e) { alert('Error updating student status.'); }
 }
 </script>

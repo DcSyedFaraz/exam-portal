@@ -35,104 +35,6 @@
     <a href="{{ route('admin.exams.index') }}" class="btn-secondary">← Back to Exams</a>
 </div>
 
-{{-- Question Modal --}}
-<div id="question-modal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div class="flex items-center justify-between p-6 border-b border-gray-100">
-            <h3 id="modal-title" class="text-lg font-semibold font-heading">Add Question</h3>
-            <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-            </button>
-        </div>
-
-        <form id="question-form" class="p-6 space-y-4">
-            @csrf
-            <input type="hidden" id="question-id" value="">
-
-            <div>
-                <label class="form-label">Question Type <span class="text-red-500">*</span></label>
-                <select id="question_type" name="question_type"
-                        class="form-input" onchange="onTypeChange(this.value)">
-                    <option value="mcq">Multiple Choice (MCQ)</option>
-                    <option value="true_false">True / False</option>
-                    <option value="match">Match Items</option>
-                </select>
-            </div>
-
-            <div>
-                <label class="form-label">Question Text <span class="text-red-500">*</span></label>
-                <textarea id="question_text" name="question_text" rows="3"
-                          class="form-input" placeholder="Enter the question..."></textarea>
-            </div>
-
-            <div class="w-32">
-                <label class="form-label">Marks <span class="text-red-500">*</span></label>
-                <input type="number" id="marks" name="marks" value="1" min="1"
-                       class="form-input">
-            </div>
-
-            {{-- MCQ Options --}}
-            <div id="options-mcq">
-                <label class="form-label">Options (select correct answer)</label>
-                <div class="space-y-2" id="mcq-options-container">
-                    @for($i = 0; $i < 4; $i++)
-                    <div class="flex items-center gap-3">
-                        <input type="radio" name="correct_option_mcq" value="{{ $i }}"
-                               class="text-yellow-400 focus:ring-yellow-400 w-4 h-4" {{ $i === 0 ? 'checked' : '' }}>
-                        <input type="text" class="form-input mcq-option-text"
-                               placeholder="Option {{ chr(65+$i) }}">
-                    </div>
-                    @endfor
-                </div>
-            </div>
-
-            {{-- True/False Options --}}
-            <div id="options-true_false" class="hidden">
-                <label class="form-label">Correct Answer</label>
-                <div class="flex gap-4">
-                    <label class="flex items-center gap-2 cursor-pointer">
-                        <input type="radio" name="correct_tf" value="true" checked
-                               class="text-yellow-400 focus:ring-yellow-400 w-4 h-4">
-                        <span class="text-sm font-medium">True</span>
-                    </label>
-                    <label class="flex items-center gap-2 cursor-pointer">
-                        <input type="radio" name="correct_tf" value="false"
-                               class="text-yellow-400 focus:ring-yellow-400 w-4 h-4">
-                        <span class="text-sm font-medium">False</span>
-                    </label>
-                </div>
-            </div>
-
-            {{-- Match Options --}}
-            <div id="options-match" class="hidden">
-                <label class="form-label">Match Pairs (left → right)</label>
-                <div class="space-y-2" id="match-pairs-container">
-                    @for($i = 0; $i < 3; $i++)
-                    <div class="flex items-center gap-2">
-                        <input type="text" class="form-input match-left" placeholder="Left item">
-                        <span class="text-gray-400">→</span>
-                        <input type="text" class="form-input match-right" placeholder="Right item">
-                    </div>
-                    @endfor
-                </div>
-                <button type="button" onclick="addMatchPair()"
-                        class="text-sm text-yellow-600 hover:underline mt-2">+ Add pair</button>
-            </div>
-
-            <div id="form-error" class="text-red-500 text-sm hidden"></div>
-
-            <div class="flex items-center gap-3 pt-2">
-                <button type="button" id="save-question-btn"
-                        onclick="saveQuestion()"
-                        class="btn-primary">
-                    Save Question
-                </button>
-                <button type="button" onclick="closeModal()" class="btn-secondary">Cancel</button>
-            </div>
-        </form>
-    </div>
-</div>
-
 <script>
 const storeUrl  = "{{ route('admin.exams.questions.store', $exam) }}";
 const updateBase = "{{ route('admin.questions.update', '__ID__') }}".replace('__ID__', '');
@@ -328,3 +230,103 @@ async function deleteQuestion(id, btn) {
 }
 </script>
 @endsection
+
+@push('modals')
+{{-- Question Modal --}}
+<div id="question-modal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between p-6 border-b border-gray-100">
+            <h3 id="modal-title" class="text-lg font-semibold font-heading">Add Question</h3>
+            <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+
+        <form id="question-form" class="p-6 space-y-4">
+            @csrf
+            <input type="hidden" id="question-id" value="">
+
+            <div>
+                <label class="form-label">Question Type <span class="text-red-500">*</span></label>
+                <select id="question_type" name="question_type"
+                        class="form-input" onchange="onTypeChange(this.value)">
+                    <option value="mcq">Multiple Choice (MCQ)</option>
+                    <option value="true_false">True / False</option>
+                    <option value="match">Match Items</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="form-label">Question Text <span class="text-red-500">*</span></label>
+                <textarea id="question_text" name="question_text" rows="3"
+                          class="form-input" placeholder="Enter the question..."></textarea>
+            </div>
+
+            <div class="w-32">
+                <label class="form-label">Marks <span class="text-red-500">*</span></label>
+                <input type="number" id="marks" name="marks" value="1" min="1"
+                       class="form-input">
+            </div>
+
+            {{-- MCQ Options --}}
+            <div id="options-mcq">
+                <label class="form-label">Options (select correct answer)</label>
+                <div class="space-y-2" id="mcq-options-container">
+                    @for($i = 0; $i < 4; $i++)
+                    <div class="flex items-center gap-3">
+                        <input type="radio" name="correct_option_mcq" value="{{ $i }}"
+                               class="text-yellow-400 focus:ring-yellow-400 w-4 h-4" {{ $i === 0 ? 'checked' : '' }}>
+                        <input type="text" class="form-input mcq-option-text"
+                               placeholder="Option {{ chr(65+$i) }}">
+                    </div>
+                    @endfor
+                </div>
+            </div>
+
+            {{-- True/False Options --}}
+            <div id="options-true_false" class="hidden">
+                <label class="form-label">Correct Answer</label>
+                <div class="flex gap-4">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="correct_tf" value="true" checked
+                               class="text-yellow-400 focus:ring-yellow-400 w-4 h-4">
+                        <span class="text-sm font-medium">True</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="correct_tf" value="false"
+                               class="text-yellow-400 focus:ring-yellow-400 w-4 h-4">
+                        <span class="text-sm font-medium">False</span>
+                    </label>
+                </div>
+            </div>
+
+            {{-- Match Options --}}
+            <div id="options-match" class="hidden">
+                <label class="form-label">Match Pairs (left → right)</label>
+                <div class="space-y-2" id="match-pairs-container">
+                    @for($i = 0; $i < 3; $i++)
+                    <div class="flex items-center gap-2">
+                        <input type="text" class="form-input match-left" placeholder="Left item">
+                        <span class="text-gray-400">→</span>
+                        <input type="text" class="form-input match-right" placeholder="Right item">
+                    </div>
+                    @endfor
+                </div>
+                <button type="button" onclick="addMatchPair()"
+                        class="text-sm text-yellow-600 hover:underline mt-2">+ Add pair</button>
+            </div>
+
+            <div id="form-error" class="text-red-500 text-sm hidden"></div>
+
+            <div class="flex items-center gap-3 pt-2">
+                <button type="button" id="save-question-btn"
+                        onclick="saveQuestion()"
+                        class="btn-primary">
+                    Save Question
+                </button>
+                <button type="button" onclick="closeModal()" class="btn-secondary">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+@endpush

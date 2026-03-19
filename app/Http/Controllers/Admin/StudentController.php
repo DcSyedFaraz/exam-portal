@@ -3,8 +3,14 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ExamAttempt;
+use App\Models\StudentProfile;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\View\View;
 
 class StudentController extends Controller
@@ -16,6 +22,100 @@ class StudentController extends Controller
             ->paginate(15);
 
         return view('admin.students.index', compact('students'));
+    }
+
+    public function create(): View
+    {
+        $parents = User::role('parent')->orderBy('name')->get();
+        return view('admin.students.create', compact('parents'));
+    }
+
+    public function store(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'name'      => ['required', 'string', 'max:255'],
+            'pin'       => ['required', 'digits:4', 'confirmed'],
+            'parent_id' => ['nullable', 'exists:users,id'],
+        ]);
+
+        $studentNumber = null;
+
+        DB::transaction(function () use ($request, &$studentNumber) {
+            $user = User::create([
+                'name'      => $request->name,
+                'email'     => null,
+                'password'  => Hash::make(\Illuminate\Support\Str::random(16)),
+                'is_active' => true,
+            ]);
+            $user->assignRole('student');
+
+            do {
+                $date   = now()->format('Ymd');
+                $random = str_pad(rand(0, 9999), 4, '0', STR_PAD_LEFT);
+                $studentNumber = "STU-{$date}-{$random}";
+            } while (StudentProfile::where('student_number', $studentNumber)->exists());
+
+            StudentProfile::create([
+                'user_id'        => $user->id,
+                'parent_id'      => $request->parent_id ?: null,
+                'student_number' => $studentNumber,
+                'pin'            => Hash::make($request->pin),
+            ]);
+        });
+
+        return redirect()->route('admin.students.index')
+            ->with('success', "Student created. Number: {$studentNumber}");
+    }
+
+    public function show(User $user): View
+    {
+        $profile  = $user->studentProfile()->with('parent')->first();
+        $attempts = ExamAttempt::where('student_id', $user->id)
+            ->whereNotNull('submitted_at')
+            ->with('exam')
+            ->latest('submitted_at')
+            ->get();
+
+        $parents = User::role('parent')->orderBy('name')->get();
+
+        return view('admin.students.show', compact('user', 'profile', 'attempts', 'parents'));
+    }
+
+    public function edit(User $user): View
+    {
+        $profile = $user->studentProfile()->with('parent')->first();
+        $parents = User::role('parent')->orderBy('name')->get();
+        return view('admin.students.edit', compact('user', 'profile', 'parents'));
+    }
+
+    public function update(Request $request, User $user): RedirectResponse
+    {
+        $request->validate([
+            'name'      => ['required', 'string', 'max:255'],
+            'parent_id' => ['nullable', 'exists:users,id'],
+        ]);
+
+        $user->update(['name' => $request->name]);
+
+        $user->studentProfile()->update([
+            'parent_id' => $request->parent_id ?: null,
+        ]);
+
+        return redirect()->route('admin.students.show', $user)
+            ->with('success', 'Student updated successfully.');
+    }
+
+    public function resetPin(Request $request, User $user): RedirectResponse
+    {
+        $request->validate([
+            'pin' => ['required', 'digits:4', 'confirmed'],
+        ]);
+
+        $user->studentProfile()->update([
+            'pin' => Hash::make($request->pin),
+        ]);
+
+        return back()->with('success', 'PIN reset successfully.');
     }
 
     public function toggleActive(User $user): JsonResponse
