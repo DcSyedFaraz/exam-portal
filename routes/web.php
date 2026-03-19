@@ -1,0 +1,74 @@
+<?php
+
+use App\Http\Controllers\Auth\AuthenticatedSessionController;
+use App\Http\Controllers\Admin;
+use App\Http\Controllers\ParentPanel;
+use App\Http\Controllers\Student;
+use Illuminate\Support\Facades\Route;
+
+// Root redirect
+Route::get('/', fn () => redirect()->route('login'));
+
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+Route::middleware('guest')->group(function () {
+    Route::get('/login',  [AuthenticatedSessionController::class, 'create'])->name('login');
+    Route::post('/login', [AuthenticatedSessionController::class, 'store']);
+});
+
+Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout')
+    ->middleware('auth');
+
+// ─── Admin ────────────────────────────────────────────────────────────────────
+Route::prefix('admin')
+    ->middleware(['auth', 'role:admin'])
+    ->name('admin.')
+    ->group(function () {
+        Route::get('dashboard', [Admin\DashboardController::class, 'index'])->name('dashboard');
+
+        // Exams
+        Route::resource('exams', Admin\ExamController::class)->except(['show']);
+        Route::post('exams/{exam}/toggle-publish', [Admin\ExamController::class, 'togglePublish'])
+            ->name('exams.toggle-publish');
+
+        // Questions
+        Route::get('exams/{exam}/questions',   [Admin\QuestionController::class, 'index'])->name('exams.questions');
+        Route::post('exams/{exam}/questions',  [Admin\QuestionController::class, 'store'])->name('exams.questions.store');
+        Route::put('questions/{question}',     [Admin\QuestionController::class, 'update'])->name('questions.update');
+        Route::delete('questions/{question}',  [Admin\QuestionController::class, 'destroy'])->name('questions.destroy');
+
+        // Students
+        Route::get('students',                          [Admin\StudentController::class, 'index'])->name('students.index');
+        Route::post('students/{user}/toggle-active',    [Admin\StudentController::class, 'toggleActive'])->name('students.toggle-active');
+
+        // Results
+        Route::get('results', [Admin\ResultController::class, 'index'])->name('results.index');
+    });
+
+// ─── Parent ───────────────────────────────────────────────────────────────────
+Route::prefix('parent')
+    ->middleware(['auth', 'role:parent'])
+    ->name('parent.')
+    ->group(function () {
+        Route::get('dashboard', [ParentPanel\DashboardController::class, 'index'])->name('dashboard');
+
+        Route::get('students',                          [ParentPanel\StudentController::class, 'index'])->name('students.index');
+        Route::get('students/create',                   [ParentPanel\StudentController::class, 'create'])->name('students.create');
+        Route::post('students',                         [ParentPanel\StudentController::class, 'store'])->name('students.store');
+        Route::get('students/{profile}/results',        [ParentPanel\StudentController::class, 'results'])->name('students.results');
+    });
+
+// ─── Student ──────────────────────────────────────────────────────────────────
+Route::prefix('student')
+    ->middleware(['auth', 'role:student'])
+    ->name('student.')
+    ->group(function () {
+        Route::get('dashboard', [Student\DashboardController::class, 'index'])->name('dashboard');
+
+        Route::get('exams',                             [Student\ExamController::class, 'index'])->name('exams.index');
+        Route::get('exams/{exam}/take',                 [Student\ExamController::class, 'take'])->name('exams.take');
+        Route::post('exams/{exam}/submit',              [Student\ExamController::class, 'submit'])->name('exams.submit');
+        Route::get('exams/{exam}/result',               [Student\ExamController::class, 'result'])->name('exams.result');
+        Route::post('exams/{exam}/save-progress',       [Student\ExamController::class, 'saveProgress'])->name('exams.save-progress');
+
+        Route::get('results', [Student\ResultController::class, 'index'])->name('results.index');
+    });

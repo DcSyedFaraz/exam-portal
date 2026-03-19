@@ -1,0 +1,85 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+@import './theme.css';
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../**/*.blade.php';
+@source '../**/*.js';
+
+@theme {
+    --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    --font-heading: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+
+    --color-primary: var(--color-primary);
+    --color-primary-dark: var(--color-primary-dark);
+    --color-primary-light: var(--color-primary-light);
+    --color-sidebar-bg: var(--color-sidebar-bg);
+    --color-sidebar-text: var(--color-sidebar-text);
+    --color-sidebar-active: var(--color-sidebar-active);
+    --color-success: var(--color-success);
+    --color-danger: var(--color-danger);
+    --color-warning: var(--color-warning);
+}
+
+@layer base {
+    body {
+        font-family: 'Inter', sans-serif;
+        color: var(--color-text);
+        background-color: var(--color-gray-light);
+    }
+    h1, h2, h3, h4, h5, h6 {
+        font-family: 'Poppins', sans-serif;
+    }
+}
+
+@layer components {
+    .btn-primary {
+        @apply bg-yellow-400 text-gray-900 font-semibold px-4 py-2 rounded-lg hover:bg-yellow-500 transition-colors duration-150 inline-flex items-center gap-2 cursor-pointer;
+    }
+    .btn-secondary {
+        @apply bg-white text-yellow-600 border border-yellow-400 font-semibold px-4 py-2 rounded-lg hover:bg-yellow-50 transition-colors duration-150 inline-flex items-center gap-2 cursor-pointer;
+    }
+    .btn-danger {
+        @apply bg-red-500 text-white font-semibold px-4 py-2 rounded-lg hover:bg-red-600 transition-colors duration-150 inline-flex items-center gap-2 cursor-pointer;
+    }
+    .btn-success {
+        @apply bg-green-500 text-white font-semibold px-4 py-2 rounded-lg hover:bg-green-600 transition-colors duration-150 inline-flex items-center gap-2 cursor-pointer;
+    }
+    .card {
+        @apply bg-white rounded-xl shadow-sm border border-gray-100 p-6;
+    }
+    .form-input {
+        @apply w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent transition;
+    }
+    .form-label {
+        @apply block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1;
+    }
+    .badge-pass {
+        @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800;
+    }
+    .badge-fail {
+        @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800;
+    }
+    .badge-pending {
+        @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800;
+    }
+    .stat-card {
+        @apply bg-white rounded-xl shadow-sm border border-gray-100 p-6 border-l-4 border-l-yellow-400;
+    }
+    .table-header {
+        @apply bg-yellow-400 text-gray-900 text-xs font-semibold uppercase tracking-wide;
+    }
+    .table-row-even {
+        @apply bg-white;
+    }
+    .table-row-odd {
+        @apply bg-gray-50;
+    }
+    .sidebar-link {
+        @apply flex items-center gap-3 px-4 py-2.5 rounded-lg text-gray-300 hover:bg-yellow-400/10 transition-colors duration-150 text-sm;
+    }
+    .sidebar-link-active {
+        @apply flex items-center gap-3 px-4 py-2.5 rounded-lg text-yellow-400 bg-yellow-400/10 font-semibold text-sm border-r-2 border-yellow-400;
+    }
+}

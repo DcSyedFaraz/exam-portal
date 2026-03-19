@@ -1,0 +1,23 @@
+/* ============================================
+   GLOBAL THEME — Edit this file to change
+   colors across the entire platform
+   ============================================ */
+:root {
+    --color-primary: #F5C518;
+    --color-primary-dark: #D4A800;
+    --color-primary-light: #FFF8DC;
+    --color-secondary: #1A1A2E;
+    --color-white: #FFFFFF;
+    --color-gray-light: #F9FAFB;
+    --color-gray-mid: #E5E7EB;
+    --color-gray-dark: #6B7280;
+    --color-text: #111827;
+    --color-text-muted: #6B7280;
+    --color-success: #10B981;
+    --color-danger: #EF4444;
+    --color-warning: #F59E0B;
+    --color-sidebar-bg: #1A1A2E;
+    --color-sidebar-text: #F9F9F9;
+    --color-sidebar-active: #F5C518;
+    --color-sidebar-hover: rgba(245, 197, 24, 0.12);
+}
