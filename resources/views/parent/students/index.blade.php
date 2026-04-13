@@ -76,22 +76,60 @@ $pinRoutes = $children->mapWithKeys(fn($c) => [$c->id => route('parent.students.
 
 <script>
 const pinRoutes = @json(json_decode($pinRoutes));
+const pinServerError = @json($errors->first('pin') ?: $errors->first('pin_confirmation'));
+const pinProfileId = @json(session('_pin_profile_id'));
 
 function openPinModal(profileId, studentNumber) {
     document.getElementById('pin-modal-number').textContent = studentNumber;
     document.getElementById('pin-form').action = pinRoutes[profileId];
+    document.getElementById('pin-profile-id').value = profileId;
     document.getElementById('pin').value = '';
     document.getElementById('pin_confirmation').value = '';
-    document.getElementById('pin-error').classList.add('hidden');
+    showPinError('');
     document.getElementById('pin-modal').classList.remove('hidden');
 }
 function closePinModal() {
     document.getElementById('pin-modal').classList.add('hidden');
 }
-function toggleVisibility(fieldId, btn) {
+function toggleVisibility(fieldId) {
     const input = document.getElementById(fieldId);
     input.type = input.type === 'password' ? 'text' : 'password';
 }
+function showPinError(msg) {
+    const el = document.getElementById('pin-error');
+    if (msg) {
+        el.textContent = msg;
+        el.classList.remove('hidden');
+    } else {
+        el.textContent = '';
+        el.classList.add('hidden');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    document.getElementById('pin-form').addEventListener('submit', function(e) {
+        const pin = document.getElementById('pin').value;
+        const confirm = document.getElementById('pin_confirmation').value;
+        if (!/^\d{4}$/.test(pin)) {
+            e.preventDefault();
+            showPinError('PIN must be exactly 4 digits.');
+            return;
+        }
+        if (pin !== confirm) {
+            e.preventDefault();
+            showPinError('PIN confirmation does not match.');
+            return;
+        }
+        showPinError('');
+    });
+
+    // Re-open modal if server-side validation failed
+    if (pinServerError && pinProfileId) {
+        const studentNumbers = @json($children->pluck('student_number', 'id'));
+        openPinModal(pinProfileId, studentNumbers[pinProfileId] ?? '');
+        showPinError(pinServerError);
+    }
+});
 </script>
 @endsection
 
@@ -116,6 +154,7 @@ function toggleVisibility(fieldId, btn) {
         {{-- Form --}}
         <form id="pin-form" method="POST" class="px-6 py-6 space-y-4">
             @csrf
+            <input type="hidden" name="_pin_profile_id" id="pin-profile-id" value="">
 
             <div>
                 <label class="form-label">New PIN <span class="text-red-500">*</span></label>

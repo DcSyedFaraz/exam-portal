@@ -41,6 +41,20 @@
                 @error('parent_id')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
             </div>
 
+            <div>
+                <label class="form-label">Class Level</label>
+                <select name="class_level" class="form-input @error('class_level') border-red-400 @enderror">
+                    <option value="">— No class assigned —</option>
+                    @foreach($classLevels as $level)
+                        <option value="{{ $level }}"
+                            {{ old('class_level', $profile?->class_level) === $level ? 'selected' : '' }}>
+                            {{ $level }}
+                        </option>
+                    @endforeach
+                </select>
+                @error('class_level')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
+            </div>
+
             <div class="flex gap-3 pt-2">
                 <button type="submit" class="btn-primary">Save Changes</button>
                 <a href="{{ route('admin.students.show', $user) }}" class="btn-secondary">Cancel</a>

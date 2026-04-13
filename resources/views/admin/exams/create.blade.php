@@ -26,6 +26,20 @@
                 @error('description') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
             </div>
 
+            <div>
+                <label class="form-label">Class Level</label>
+                <select name="class_level" class="form-input @error('class_level') border-red-400 @enderror">
+                    <option value="">— All classes (no restriction) —</option>
+                    @foreach($classLevels as $level)
+                        <option value="{{ $level }}" {{ old('class_level') === $level ? 'selected' : '' }}>
+                            {{ $level }}
+                        </option>
+                    @endforeach
+                </select>
+                <p class="text-xs text-gray-400 mt-1">Leave blank to make this exam visible to all students.</p>
+                @error('class_level') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+            </div>
+
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                     <label class="form-label">Duration (minutes) <span class="text-red-500">*</span></label>

@@ -18,6 +18,7 @@ class Exam extends Model
         'passing_marks',
         'total_marks',
         'created_by',
+        'class_level',
     ];
 
     protected function casts(): array

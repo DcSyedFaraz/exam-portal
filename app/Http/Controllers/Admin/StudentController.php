@@ -11,6 +11,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class StudentController extends Controller
@@ -26,16 +27,18 @@ class StudentController extends Controller
 
     public function create(): View
     {
-        $parents = User::role('parent')->orderBy('name')->get();
-        return view('admin.students.create', compact('parents'));
+        $parents     = User::role('parent')->orderBy('name')->get();
+        $classLevels = StudentProfile::CLASS_LEVELS;
+        return view('admin.students.create', compact('parents', 'classLevels'));
     }
 
     public function store(Request $request): RedirectResponse
     {
         $request->validate([
-            'name'      => ['required', 'string', 'max:255'],
-            'pin'       => ['required', 'digits:4', 'confirmed'],
-            'parent_id' => ['nullable', 'exists:users,id'],
+            'name'        => ['required', 'string', 'max:255'],
+            'pin'         => ['required', 'digits:4', 'confirmed'],
+            'parent_id'   => ['nullable', 'exists:users,id'],
+            'class_level' => ['nullable', Rule::in(StudentProfile::CLASS_LEVELS)],
         ]);
 
         $studentNumber = null;
@@ -60,6 +63,7 @@ class StudentController extends Controller
                 'parent_id'      => $request->parent_id ?: null,
                 'student_number' => $studentNumber,
                 'pin'            => Hash::make($request->pin),
+                'class_level'    => $request->class_level ?: null,
             ]);
         });
 
@@ -83,22 +87,25 @@ class StudentController extends Controller
 
     public function edit(User $user): View
     {
-        $profile = $user->studentProfile()->with('parent')->first();
-        $parents = User::role('parent')->orderBy('name')->get();
-        return view('admin.students.edit', compact('user', 'profile', 'parents'));
+        $profile     = $user->studentProfile()->with('parent')->first();
+        $parents     = User::role('parent')->orderBy('name')->get();
+        $classLevels = StudentProfile::CLASS_LEVELS;
+        return view('admin.students.edit', compact('user', 'profile', 'parents', 'classLevels'));
     }
 
     public function update(Request $request, User $user): RedirectResponse
     {
         $request->validate([
-            'name'      => ['required', 'string', 'max:255'],
-            'parent_id' => ['nullable', 'exists:users,id'],
+            'name'        => ['required', 'string', 'max:255'],
+            'parent_id'   => ['nullable', 'exists:users,id'],
+            'class_level' => ['nullable', Rule::in(StudentProfile::CLASS_LEVELS)],
         ]);
 
         $user->update(['name' => $request->name]);
 
         $user->studentProfile()->update([
-            'parent_id' => $request->parent_id ?: null,
+            'parent_id'   => $request->parent_id ?: null,
+            'class_level' => $request->class_level ?: null,
         ]);
 
         return redirect()->route('admin.students.show', $user)

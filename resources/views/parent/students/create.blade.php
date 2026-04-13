@@ -61,6 +61,20 @@
                 @error('pin_confirmation') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
             </div>
 
+            <div>
+                <label class="form-label">Class Level <span class="text-red-500">*</span></label>
+                <select name="class_level"
+                        class="form-input @error('class_level') border-red-400 @enderror">
+                    <option value="">— Select Class Level —</option>
+                    @foreach($classLevels as $level)
+                        <option value="{{ $level }}" {{ old('class_level') === $level ? 'selected' : '' }}>
+                            {{ $level }}
+                        </option>
+                    @endforeach
+                </select>
+                @error('class_level') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+            </div>
+
             <div class="flex items-center gap-3 pt-2">
                 <button type="submit" class="btn-primary">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>

@@ -14,9 +14,18 @@ class ExamController extends Controller
 {
     public function index()
     {
-        $studentId = auth()->id();
+        $studentId         = auth()->id();
+        $studentClassLevel = auth()->user()->studentProfile?->class_level;
+
+        $classFilter = function ($q) use ($studentClassLevel) {
+            $q->whereNull('class_level');
+            if ($studentClassLevel) {
+                $q->orWhere('class_level', $studentClassLevel);
+            }
+        };
 
         $exams = Exam::where('is_published', true)
+            ->where($classFilter)
             ->withCount('questions')
             ->get()
             ->map(function ($exam) use ($studentId) {
@@ -33,7 +42,14 @@ class ExamController extends Controller
 
     public function take(Exam $exam)
     {
-        $studentId = auth()->id();
+        $studentId         = auth()->id();
+        $studentClassLevel = auth()->user()->studentProfile?->class_level;
+
+        abort_unless(
+            is_null($exam->class_level) || $exam->class_level === $studentClassLevel,
+            403,
+            'This exam is not available for your class level.'
+        );
 
         // Check if student already passed — no retake allowed
         $latestAttempt = ExamAttempt::where('student_id', $studentId)
@@ -156,7 +172,14 @@ class ExamController extends Controller
 
     public function result(Exam $exam)
     {
-        $studentId = auth()->id();
+        $studentId         = auth()->id();
+        $studentClassLevel = auth()->user()->studentProfile?->class_level;
+
+        abort_unless(
+            is_null($exam->class_level) || $exam->class_level === $studentClassLevel,
+            403,
+            'This exam is not available for your class level.'
+        );
 
         $attempt = ExamAttempt::where('student_id', $studentId)
             ->where('exam_id', $exam->id)

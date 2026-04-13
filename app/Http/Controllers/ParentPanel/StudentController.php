@@ -32,7 +32,8 @@ class StudentController extends Controller
 
     public function create(): View
     {
-        return view('parent.students.create');
+        $classLevels = StudentProfile::CLASS_LEVELS;
+        return view('parent.students.create', compact('classLevels'));
     }
 
     public function store(StoreStudentRequest $request): RedirectResponse
@@ -55,6 +56,7 @@ class StudentController extends Controller
                 'parent_id'      => auth()->id(),
                 'student_number' => $studentNumber,
                 'pin'            => Hash::make($request->pin),
+                'class_level'    => $request->class_level,
             ]);
         });
 
@@ -69,9 +71,18 @@ class StudentController extends Controller
     {
         abort_unless($profile->parent_id === auth()->id(), 403);
 
-        $request->validate([
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
             'pin' => ['required', 'digits:4', 'confirmed'],
+        ], [
+            'pin.digits'    => 'PIN must be exactly 4 digits.',
+            'pin.confirmed' => 'PIN confirmation does not match.',
         ]);
+
+        if ($validator->fails()) {
+            return back()
+                ->withErrors($validator)
+                ->with('_pin_profile_id', $request->input('_pin_profile_id'));
+        }
 
         $profile->update(['pin' => Hash::make($request->pin)]);
 

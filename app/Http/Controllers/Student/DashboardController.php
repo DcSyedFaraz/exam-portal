@@ -10,14 +10,23 @@ class DashboardController extends Controller
 {
     public function index()
     {
-        $studentId = auth()->id();
+        $studentId         = auth()->id();
+        $studentClassLevel = auth()->user()->studentProfile?->class_level;
 
-        $availableExams = Exam::where('is_published', true)->count();
+        $classFilter = function ($q) use ($studentClassLevel) {
+            $q->whereNull('class_level');
+            if ($studentClassLevel) {
+                $q->orWhere('class_level', $studentClassLevel);
+            }
+        };
+
+        $availableExams = Exam::where('is_published', true)->where($classFilter)->count();
         $examsTaken     = ExamAttempt::where('student_id', $studentId)->whereNotNull('submitted_at')->count();
         $examsPassed    = ExamAttempt::where('student_id', $studentId)->where('is_passed', true)->whereNotNull('submitted_at')->count();
         $avgScore       = ExamAttempt::where('student_id', $studentId)->whereNotNull('submitted_at')->avg('score') ?? 0;
 
         $exams = Exam::where('is_published', true)
+            ->where($classFilter)
             ->withCount('questions')
             ->get()
             ->map(function ($exam) use ($studentId) {

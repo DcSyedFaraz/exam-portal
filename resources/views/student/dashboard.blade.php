@@ -10,6 +10,12 @@
     <p class="text-gray-500 mt-1">Ready to test your knowledge today?</p>
 </div>
 
+@if(!auth()->user()->studentProfile?->class_level)
+<div class="bg-yellow-50 border border-yellow-200 text-yellow-800 text-sm rounded-lg px-4 py-3 mb-6">
+    Your account has no class level assigned. Contact your parent or admin to have a class assigned so you can access all available exams.
+</div>
+@endif
+
 {{-- Stat Cards --}}
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
     <div class="stat-card">
