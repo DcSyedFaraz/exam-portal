@@ -6,8 +6,8 @@
 // ============================================
 
 return [
-    'name'      => env('APP_PLATFORM_NAME', 'ExamPortal'),
-    'tagline'   => env('APP_TAGLINE', 'Smart Exams. Better Results.'),
+    'name' => env('APP_PLATFORM_NAME', 'ExamPortal'),
+    'tagline' => env('APP_TAGLINE', 'Smart Exams. Better Results.'),
     'logo_icon' => '📚',
-    'version'   => '1.0.0',
+    'version' => '1.0.1',
 ];

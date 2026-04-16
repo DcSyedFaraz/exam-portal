@@ -80,6 +80,12 @@
                 </button>
             </form>
 
+            <div id="staff-extra" class="mt-4 text-center">
+                <a href="{{ route('parent.register') }}" class="text-sm text-yellow-700 hover:underline">
+                    Register as Parent (Admin approval required)
+                </a>
+            </div>
+
             {{-- Student Form --}}
             <form id="form-student" method="POST" action="{{ route('login') }}" class="space-y-4 hidden">
                 @csrf
@@ -119,6 +125,7 @@ function switchTab(tab) {
     const isStaff = tab === 'staff';
     document.getElementById('form-staff').classList.toggle('hidden', !isStaff);
     document.getElementById('form-student').classList.toggle('hidden', isStaff);
+    document.getElementById('staff-extra').classList.toggle('hidden', !isStaff);
 
     const tabStaff   = document.getElementById('tab-staff');
     const tabStudent = document.getElementById('tab-student');

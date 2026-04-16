@@ -6,11 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Models\ExamAttempt;
 use App\Models\StudentProfile;
 use App\Models\User;
+use App\Services\StudentNumberGenerator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -27,43 +29,40 @@ class StudentController extends Controller
 
     public function create(): View
     {
-        $parents     = User::role('parent')->orderBy('name')->get();
+        $parents = User::role('parent')->orderBy('name')->get();
         $classLevels = StudentProfile::CLASS_LEVELS;
+
         return view('admin.students.create', compact('parents', 'classLevels'));
     }
 
     public function store(Request $request): RedirectResponse
     {
         $request->validate([
-            'name'        => ['required', 'string', 'max:255'],
-            'pin'         => ['required', 'digits:4', 'confirmed'],
-            'parent_id'   => ['nullable', 'exists:users,id'],
-            'class_level' => ['nullable', Rule::in(StudentProfile::CLASS_LEVELS)],
+            'name' => ['required', 'string', 'max:255'],
+            'pin' => ['required', 'digits:4', 'confirmed'],
+            'parent_id' => ['nullable', 'exists:users,id'],
+            'class_level' => ['required', Rule::in(StudentProfile::CLASS_LEVELS)],
         ]);
 
         $studentNumber = null;
 
         DB::transaction(function () use ($request, &$studentNumber) {
             $user = User::create([
-                'name'      => $request->name,
-                'email'     => null,
-                'password'  => Hash::make(\Illuminate\Support\Str::random(16)),
+                'name' => $request->name,
+                'email' => null,
+                'password' => Hash::make(Str::random(16)),
                 'is_active' => true,
             ]);
             $user->assignRole('student');
 
-            do {
-                $date   = now()->format('Ymd');
-                $random = str_pad(rand(0, 9999), 4, '0', STR_PAD_LEFT);
-                $studentNumber = "STU-{$date}-{$random}";
-            } while (StudentProfile::where('student_number', $studentNumber)->exists());
+            $studentNumber = StudentNumberGenerator::next($request->class_level);
 
             StudentProfile::create([
-                'user_id'        => $user->id,
-                'parent_id'      => $request->parent_id ?: null,
+                'user_id' => $user->id,
+                'parent_id' => $request->parent_id ?: null,
                 'student_number' => $studentNumber,
-                'pin'            => Hash::make($request->pin),
-                'class_level'    => $request->class_level ?: null,
+                'pin' => Hash::make($request->pin),
+                'class_level' => $request->class_level,
             ]);
         });
 
@@ -73,7 +72,7 @@ class StudentController extends Controller
 
     public function show(User $user): View
     {
-        $profile  = $user->studentProfile()->with('parent')->first();
+        $profile = $user->studentProfile()->with('parent')->first();
         $attempts = ExamAttempt::where('student_id', $user->id)
             ->whereNotNull('submitted_at')
             ->with('exam')
@@ -87,24 +86,25 @@ class StudentController extends Controller
 
     public function edit(User $user): View
     {
-        $profile     = $user->studentProfile()->with('parent')->first();
-        $parents     = User::role('parent')->orderBy('name')->get();
+        $profile = $user->studentProfile()->with('parent')->first();
+        $parents = User::role('parent')->orderBy('name')->get();
         $classLevels = StudentProfile::CLASS_LEVELS;
+
         return view('admin.students.edit', compact('user', 'profile', 'parents', 'classLevels'));
     }
 
     public function update(Request $request, User $user): RedirectResponse
     {
         $request->validate([
-            'name'        => ['required', 'string', 'max:255'],
-            'parent_id'   => ['nullable', 'exists:users,id'],
+            'name' => ['required', 'string', 'max:255'],
+            'parent_id' => ['nullable', 'exists:users,id'],
             'class_level' => ['nullable', Rule::in(StudentProfile::CLASS_LEVELS)],
         ]);
 
         $user->update(['name' => $request->name]);
 
         $user->studentProfile()->update([
-            'parent_id'   => $request->parent_id ?: null,
+            'parent_id' => $request->parent_id ?: null,
             'class_level' => $request->class_level ?: null,
         ]);
 
@@ -127,10 +127,20 @@ class StudentController extends Controller
 
     public function toggleActive(User $user): JsonResponse
     {
-        $user->update(['is_active' => !$user->is_active]);
+        $user->update(['is_active' => ! $user->is_active]);
+
         return response()->json([
-            'active'  => $user->is_active,
+            'active' => $user->is_active,
             'message' => $user->is_active ? 'Student activated.' : 'Student deactivated.',
         ]);
+    }
+
+    public function destroy(User $user): RedirectResponse
+    {
+        abort_unless($user->hasRole('student'), 404);
+        $user->delete();
+
+        return redirect()->route('admin.students.index')
+            ->with('success', 'Student deleted successfully.');
     }
 }

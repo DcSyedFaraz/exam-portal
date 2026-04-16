@@ -60,13 +60,7 @@
         </div>
     </div>
 
-    {{-- Per-Question Breakdown (only shown on pass) --}}
-    @if(!$attempt->is_passed)
-    <div class="card text-center py-8">
-        <p class="text-gray-500 text-sm">Answer breakdown is not available for failed attempts.</p>
-        <p class="text-gray-400 text-xs mt-1">Retake the exam to improve your score.</p>
-    </div>
-    @else
+    {{-- Per-Question Breakdown --}}
     <div class="card">
         <h3 class="text-base font-semibold font-heading text-gray-900 mb-4">Answer Breakdown</h3>
 
@@ -92,7 +86,7 @@
                                 Your answer:
                                 <strong>{{ $answer->selectedOption?->option_text ?? 'Not answered' }}</strong>
                             </p>
-                            @if(!$answer->is_correct && $attempt->is_passed && $question->correctOption)
+                            @if(!$answer->is_correct && $question->correctOption)
                             <p class="text-sm text-green-700 mt-1">
                                 Correct answer:
                                 <strong>{{ $question->correctOption->option_text }}</strong>
@@ -109,7 +103,6 @@
             @endforeach
         </div>
     </div>
-    @endif
 
 </div>
 

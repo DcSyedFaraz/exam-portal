@@ -18,8 +18,15 @@
                     <h2 class="text-xl font-bold font-heading text-gray-900">{{ $user->name }}</h2>
                     <p class="text-sm text-gray-500">{{ $user->email }}</p>
                     <div class="flex items-center gap-2 mt-1">
-                        <span class="{{ $user->is_active ? 'badge-pass' : 'badge-fail' }}">
-                            {{ $user->is_active ? 'Active' : 'Inactive' }}
+                        @php
+                            $status = $user->parent_status;
+                            $isPending = $status === \App\Models\User::PARENT_STATUS_PENDING;
+                            $isRejected = $status === \App\Models\User::PARENT_STATUS_REJECTED;
+                            $label = $isPending ? 'Pending' : ($isRejected ? 'Rejected' : ($user->is_active ? 'Active' : 'Inactive'));
+                            $badgeClass = $isPending ? 'bg-yellow-100 text-yellow-700' : ($isRejected ? 'bg-red-100 text-red-700' : ($user->is_active ? 'badge-pass' : 'badge-fail'));
+                        @endphp
+                        <span class="text-xs px-3 py-1 rounded-full font-semibold {{ $badgeClass }}">
+                            {{ $label }}
                         </span>
                         <span class="text-xs text-gray-400">Joined {{ $user->created_at->format('d M Y') }}</span>
                     </div>
@@ -30,6 +37,24 @@
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                     Edit
                 </a>
+                @if($user->parent_status === \App\Models\User::PARENT_STATUS_PENDING)
+                    <form method="POST" action="{{ route('admin.parents.approve', $user) }}"
+                          onsubmit="return confirm('Approve this parent account?')">
+                        @csrf
+                        <button type="submit" class="btn-primary text-sm">Approve</button>
+                    </form>
+                    <form method="POST" action="{{ route('admin.parents.reject', $user) }}"
+                          onsubmit="return confirm('Reject this parent account request?')">
+                        @csrf
+                        <button type="submit" class="btn-secondary text-sm">Reject</button>
+                    </form>
+                @endif
+                <form method="POST" action="{{ route('admin.parents.destroy', $user) }}"
+                      onsubmit="return confirm('Delete this parent account?')">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="btn-secondary text-sm">Delete</button>
+                </form>
                 <a href="{{ route('admin.parents.index') }}" class="btn-secondary text-sm">← Back</a>
             </div>
         </div>

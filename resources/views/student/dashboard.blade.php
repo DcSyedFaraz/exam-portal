@@ -91,7 +91,7 @@
             </div>
 
             @if(!$exam->latest_attempt || !$exam->latest_attempt->is_passed)
-                <a href="{{ route('student.exams.take', $exam) }}"
+                <a href="{{ route('student.exams.instructions', $exam) }}"
                    class="btn-primary w-full justify-center text-sm">
                     {{ $exam->latest_attempt ? 'Retake Exam' : 'Start Exam' }}
                 </a>

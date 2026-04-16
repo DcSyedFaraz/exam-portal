@@ -66,6 +66,15 @@
                                     class="text-xs px-3 py-1.5 rounded transition {{ $student->is_active ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-green-100 text-green-700 hover:bg-green-200' }}">
                                     {{ $student->is_active ? 'Deactivate' : 'Activate' }}
                                 </button>
+                                <form method="POST" action="{{ route('admin.students.destroy', $student) }}"
+                                      onsubmit="return confirm('Delete this student account?')">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit"
+                                            class="text-xs px-3 py-1.5 rounded bg-red-100 text-red-700 hover:bg-red-200 transition">
+                                        Delete
+                                    </button>
+                                </form>
                             </div>
                         </td>
                     </tr>

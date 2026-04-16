@@ -40,7 +40,13 @@
             <a href="{{ route('admin.parents.index') }}"
                class="{{ request()->routeIs('admin.parents.*') ? 'sidebar-link-active' : 'sidebar-link' }}">
                 <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0"/></svg>
-                Parents
+                <span class="flex-1 min-w-0 truncate">Parents</span>
+                @if(($pendingParentRequestsCount ?? 0) > 0)
+                    <span class="ml-auto shrink-0 inline-flex min-h-[1.125rem] items-center justify-center rounded px-1.5 py-0.5 text-[10px] font-semibold tabular-nums leading-none text-white bg-rose-600 shadow-sm ring-1 ring-white/10"
+                          title="Pending parent registration requests">
+                        {{ $pendingParentRequestsCount > 99 ? '99+' : $pendingParentRequestsCount }}
+                    </span>
+                @endif
             </a>
 
             <a href="{{ route('admin.results.index') }}"

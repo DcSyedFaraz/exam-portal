@@ -48,9 +48,15 @@
                             </span>
                         </td>
                         <td class="px-4 py-3 text-center">
-                            <span id="status-badge-{{ $parent->id }}"
-                                  class="{{ $parent->is_active ? 'badge-pass' : 'badge-fail' }}">
-                                {{ $parent->is_active ? 'Active' : 'Inactive' }}
+                            @php
+                                $status = $parent->parent_status;
+                                $isPending = $status === \App\Models\User::PARENT_STATUS_PENDING;
+                                $isRejected = $status === \App\Models\User::PARENT_STATUS_REJECTED;
+                                $label = $isPending ? 'Pending' : ($isRejected ? 'Rejected' : ($parent->is_active ? 'Active' : 'Inactive'));
+                                $badgeClass = $isPending ? 'bg-yellow-100 text-yellow-700' : ($isRejected ? 'bg-red-100 text-red-700' : ($parent->is_active ? 'badge-pass' : 'badge-fail'));
+                            @endphp
+                            <span id="status-badge-{{ $parent->id }}" class="text-xs px-3 py-1 rounded-full font-semibold {{ $badgeClass }}">
+                                {{ $label }}
                             </span>
                         </td>
                         <td class="px-4 py-3 text-center">
@@ -63,6 +69,24 @@
                                    class="text-xs px-3 py-1.5 rounded bg-yellow-100 text-yellow-700 hover:bg-yellow-200 transition">
                                     Edit
                                 </a>
+                                @if($parent->parent_status === \App\Models\User::PARENT_STATUS_PENDING)
+                                    <form method="POST" action="{{ route('admin.parents.approve', $parent) }}"
+                                          onsubmit="return confirm('Approve this parent account?')">
+                                        @csrf
+                                        <button type="submit"
+                                                class="text-xs px-3 py-1.5 rounded bg-green-100 text-green-700 hover:bg-green-200 transition">
+                                            Approve
+                                        </button>
+                                    </form>
+                                    <form method="POST" action="{{ route('admin.parents.reject', $parent) }}"
+                                          onsubmit="return confirm('Reject this parent account request?')">
+                                        @csrf
+                                        <button type="submit"
+                                                class="text-xs px-3 py-1.5 rounded bg-red-100 text-red-700 hover:bg-red-200 transition">
+                                            Reject
+                                        </button>
+                                    </form>
+                                @else
                                 <button
                                     id="toggle-btn-{{ $parent->id }}"
                                     onclick="toggleActive({{ $parent->id }}, this)"
@@ -70,6 +94,16 @@
                                     class="text-xs px-3 py-1.5 rounded transition {{ $parent->is_active ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-green-100 text-green-700 hover:bg-green-200' }}">
                                     {{ $parent->is_active ? 'Deactivate' : 'Activate' }}
                                 </button>
+                                @endif
+                                <form method="POST" action="{{ route('admin.parents.destroy', $parent) }}"
+                                      onsubmit="return confirm('Delete this parent account?')">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit"
+                                            class="text-xs px-3 py-1.5 rounded bg-red-100 text-red-700 hover:bg-red-200 transition">
+                                        Delete
+                                    </button>
+                                </form>
                             </div>
                         </td>
                     </tr>
@@ -89,6 +123,11 @@ async function toggleActive(id, btn) {
     try {
         const res  = await fetch(url, { method: 'POST', headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' } });
         const data = await res.json();
+
+        if (!res.ok) {
+            alert(data.message || 'Error updating parent status.');
+            return;
+        }
 
         const badge = document.getElementById('status-badge-' + id);
         badge.textContent = data.active ? 'Active' : 'Inactive';

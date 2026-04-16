@@ -6,15 +6,54 @@ use App\Http\Controllers\Controller;
 use App\Models\Exam;
 use App\Models\ExamAttempt;
 use App\Models\StudentAnswer;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 
 class ExamController extends Controller
 {
+    protected function ensureExamAvailableForStudent(Exam $exam): void
+    {
+        $studentClassLevel = auth()->user()->studentProfile?->class_level;
+
+        abort_unless(
+            is_null($exam->class_level) || $exam->class_level === $studentClassLevel,
+            403,
+            'This exam is not available for your class level.'
+        );
+    }
+
+    protected function latestSubmittedAttempt(int $studentId, int $examId): ?ExamAttempt
+    {
+        return ExamAttempt::where('student_id', $studentId)
+            ->where('exam_id', $examId)
+            ->whereNotNull('submitted_at')
+            ->latest('submitted_at')
+            ->first();
+    }
+
+    protected function getOrCreateInProgressAttempt(int $studentId, int $examId): ExamAttempt
+    {
+        $attempt = ExamAttempt::where('student_id', $studentId)
+            ->where('exam_id', $examId)
+            ->whereNull('submitted_at')
+            ->first();
+
+        if ($attempt) {
+            return $attempt;
+        }
+
+        return ExamAttempt::create([
+            'student_id' => $studentId,
+            'exam_id' => $examId,
+            'started_at' => now(),
+        ]);
+    }
+
     public function index()
     {
-        $studentId         = auth()->id();
+        $studentId = auth()->id();
         $studentClassLevel = auth()->user()->studentProfile?->class_level;
 
         $classFilter = function ($q) use ($studentClassLevel) {
@@ -34,29 +73,68 @@ class ExamController extends Controller
                     ->whereNotNull('submitted_at')
                     ->latest('submitted_at')
                     ->first();
+
                 return $exam;
             });
 
         return view('student.exams.index', compact('exams'));
     }
 
+    public function instructions(Exam $exam)
+    {
+        $studentId = auth()->id();
+
+        $this->ensureExamAvailableForStudent($exam);
+
+        $latestAttempt = $this->latestSubmittedAttempt($studentId, $exam->id);
+        if ($latestAttempt && $latestAttempt->is_passed) {
+            return redirect()->route('student.exams.result', $exam)
+                ->with('info', 'You have already passed this exam.');
+        }
+
+        // If exam is already started (in-progress attempt), go straight back to the exam
+        $inProgress = ExamAttempt::where('student_id', $studentId)
+            ->where('exam_id', $exam->id)
+            ->whereNull('submitted_at')
+            ->first();
+        if ($inProgress) {
+            return redirect()->route('student.exams.take', $exam);
+        }
+
+        $questionsCount = $exam->questions()->count();
+
+        return view('student.exams.instructions', compact('exam', 'questionsCount'));
+    }
+
+    public function begin(Request $request, Exam $exam): RedirectResponse
+    {
+        $studentId = auth()->id();
+
+        $this->ensureExamAvailableForStudent($exam);
+
+        $latestAttempt = $this->latestSubmittedAttempt($studentId, $exam->id);
+        if ($latestAttempt && $latestAttempt->is_passed) {
+            return redirect()->route('student.exams.result', $exam)
+                ->with('info', 'You have already passed this exam.');
+        }
+
+        // On retake after fail: delete the old submitted attempt to keep only latest
+        if ($latestAttempt && ! $latestAttempt->is_passed) {
+            $latestAttempt->delete(); // cascades to student_answers
+        }
+
+        $this->getOrCreateInProgressAttempt($studentId, $exam->id);
+
+        return redirect()->route('student.exams.take', $exam);
+    }
+
     public function take(Exam $exam)
     {
-        $studentId         = auth()->id();
-        $studentClassLevel = auth()->user()->studentProfile?->class_level;
-
-        abort_unless(
-            is_null($exam->class_level) || $exam->class_level === $studentClassLevel,
-            403,
-            'This exam is not available for your class level.'
-        );
+        $studentId = auth()->id();
+        $this->ensureExamAvailableForStudent($exam);
 
         // Check if student already passed — no retake allowed
-        $latestAttempt = ExamAttempt::where('student_id', $studentId)
-            ->where('exam_id', $exam->id)
-            ->whereNotNull('submitted_at')
-            ->latest('submitted_at')
-            ->first();
+        $latestAttempt = $this->latestSubmittedAttempt($studentId, $exam->id);
 
         if ($latestAttempt && $latestAttempt->is_passed) {
             return redirect()->route('student.exams.result', $exam)
@@ -64,23 +142,12 @@ class ExamController extends Controller
         }
 
         // On retake: delete the old attempt to keep only latest
-        if ($latestAttempt && !$latestAttempt->is_passed) {
+        if ($latestAttempt && ! $latestAttempt->is_passed) {
             $latestAttempt->delete(); // cascades to student_answers
         }
 
-        // Check for an in-progress attempt (started but not submitted)
-        $attempt = ExamAttempt::where('student_id', $studentId)
-            ->where('exam_id', $exam->id)
-            ->whereNull('submitted_at')
-            ->first();
-
-        if (!$attempt) {
-            $attempt = ExamAttempt::create([
-                'student_id' => $studentId,
-                'exam_id'    => $exam->id,
-                'started_at' => now(),
-            ]);
-        }
+        // Ensure attempt exists (e.g. direct-link to /take)
+        $attempt = $this->getOrCreateInProgressAttempt($studentId, $exam->id);
 
         $questions = $exam->questions()->with('options')->get();
 
@@ -109,9 +176,9 @@ class ExamController extends Controller
             $attempt->answers()->delete();
 
             foreach ($exam->questions()->with('options')->get() as $question) {
-                $isCorrect    = false;
+                $isCorrect = false;
                 $marksAwarded = 0;
-                $selectedId   = null;
+                $selectedId = null;
 
                 if ($question->question_type === 'match') {
                     // Match questions: answers[questionId][optionId] = matchPairValue
@@ -120,21 +187,21 @@ class ExamController extends Controller
 
                     foreach ($question->options as $option) {
                         $submitted = $questionAnswers[$option->id] ?? null;
-                        if (!$submitted || $submitted !== $option->match_pair) {
+                        if (! $submitted || $submitted !== $option->match_pair) {
                             $allCorrect = false;
                         }
                     }
 
-                    $isCorrect    = $allCorrect && count($questionAnswers) === $question->options->count();
+                    $isCorrect = $allCorrect && count($questionAnswers) === $question->options->count();
                     $marksAwarded = $isCorrect ? $question->marks : 0;
-                    $selectedId   = null; // Not applicable for match
+                    $selectedId = null; // Not applicable for match
 
                     StudentAnswer::create([
-                        'attempt_id'         => $attempt->id,
-                        'question_id'        => $question->id,
+                        'attempt_id' => $attempt->id,
+                        'question_id' => $question->id,
                         'selected_option_id' => null,
-                        'is_correct'         => $isCorrect,
-                        'marks_awarded'      => $marksAwarded,
+                        'is_correct' => $isCorrect,
+                        'marks_awarded' => $marksAwarded,
                     ]);
                 } else {
                     // MCQ / True-False
@@ -149,11 +216,11 @@ class ExamController extends Controller
                     }
 
                     StudentAnswer::create([
-                        'attempt_id'         => $attempt->id,
-                        'question_id'        => $question->id,
+                        'attempt_id' => $attempt->id,
+                        'question_id' => $question->id,
                         'selected_option_id' => $selectedId,
-                        'is_correct'         => $isCorrect,
-                        'marks_awarded'      => $marksAwarded,
+                        'is_correct' => $isCorrect,
+                        'marks_awarded' => $marksAwarded,
                     ]);
                 }
 
@@ -161,8 +228,8 @@ class ExamController extends Controller
             }
 
             $attempt->update([
-                'score'        => $totalScore,
-                'is_passed'    => $totalScore >= $exam->passing_marks,
+                'score' => $totalScore,
+                'is_passed' => $totalScore >= $exam->passing_marks,
                 'submitted_at' => now(),
             ]);
         });
@@ -172,20 +239,14 @@ class ExamController extends Controller
 
     public function result(Exam $exam)
     {
-        $studentId         = auth()->id();
-        $studentClassLevel = auth()->user()->studentProfile?->class_level;
-
-        abort_unless(
-            is_null($exam->class_level) || $exam->class_level === $studentClassLevel,
-            403,
-            'This exam is not available for your class level.'
-        );
+        $studentId = auth()->id();
+        $this->ensureExamAvailableForStudent($exam);
 
         $attempt = ExamAttempt::where('student_id', $studentId)
             ->where('exam_id', $exam->id)
             ->whereNotNull('submitted_at')
             ->latest('submitted_at')
-            ->with(['answers.question.options', 'answers.selectedOption'])
+            ->with(['answers.question.options', 'answers.question.correctOption', 'answers.selectedOption'])
             ->firstOrFail();
 
         return view('student.exams.result', compact('exam', 'attempt'));
@@ -200,14 +261,16 @@ class ExamController extends Controller
             ->whereNull('submitted_at')
             ->first();
 
-        if (!$attempt) {
+        if (! $attempt) {
             return response()->noContent();
         }
 
         $answers = $request->input('answers', []);
 
         foreach ($answers as $questionId => $optionId) {
-            if (is_array($optionId)) continue; // skip match answers in beacon save
+            if (is_array($optionId)) {
+                continue;
+            } // skip match answers in beacon save
 
             StudentAnswer::updateOrCreate(
                 ['attempt_id' => $attempt->id, 'question_id' => $questionId],

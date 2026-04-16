@@ -61,14 +61,14 @@
                                 {{ $exam->latest_attempt->score }}/{{ $exam->total_marks }}
                             </span>
                         </div>
-                        <a href="{{ route('student.exams.take', $exam) }}"
+                        <a href="{{ route('student.exams.instructions', $exam) }}"
                            class="btn-primary w-full justify-center">
                             Retake Exam
                         </a>
                     </div>
                 @endif
             @else
-                <a href="{{ route('student.exams.take', $exam) }}"
+                <a href="{{ route('student.exams.instructions', $exam) }}"
                    class="btn-primary w-full justify-center">
                     Start Exam
                 </a>

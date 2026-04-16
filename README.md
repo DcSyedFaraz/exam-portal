@@ -20,6 +20,7 @@ A full-stack Online Examination Platform built with Laravel 13, Blade, Tailwind 
 ## Setup
 
 ### Requirements
+
 - PHP >= 8.2
 - MySQL
 - Node.js >= 18
@@ -58,19 +59,20 @@ Visit: `http://127.0.0.1:8000`
 
 ### Staff Login (email + password)
 
-| Role    | Email              | Password |
-|---------|--------------------|----------|
-| Admin   | admin@exam.com     | password |
-| Parent  | parent1@exam.com   | password |
-| Parent  | parent2@exam.com   | password |
+| Role   | Email             | Password |
+| ------ | ----------------- | -------- |
+| Admin  | admin@gmail.com   | 12345678 |
+| Parent | parent@gmail.com  | 12345678 |
+| Parent | parent2@gmail.com | 12345678 |
 
 ### Student Login (student number + PIN)
 
-| Student Number      | PIN  |
-|---------------------|------|
-| (auto-generated)    | 1234 |
+| Student Number   | PIN  |
+| ---------------- | ---- |
+| (auto-generated) | 1234 |
 
 > To retrieve student numbers after seeding, run:
+>
 > ```bash
 > php artisan tinker --execute="echo implode(PHP_EOL, App\Models\StudentProfile::pluck('student_number')->toArray());"
 > ```
@@ -78,13 +80,16 @@ Visit: `http://127.0.0.1:8000`
 ## Customization
 
 ### Change Platform Name / Tagline
+
 Edit `config/app_settings.php` or set in `.env`:
+
 ```
 APP_PLATFORM_NAME="My Exam Portal"
 APP_TAGLINE="My Custom Tagline"
 ```
 
 ### Change Colors
+
 Edit `resources/css/theme.css` — all CSS custom properties in one place.
 Then rebuild: `npm run build`
 
@@ -127,10 +132,10 @@ database/
 
 ## Tech Stack
 
-| Layer       | Technology                        |
-|-------------|-----------------------------------|
-| Backend     | Laravel 13 (PHP 8.2+)             |
-| Frontend    | Blade Templates + Vanilla JS      |
-| Styling     | Tailwind CSS v4 via Vite          |
-| Auth/Roles  | Spatie Laravel Permission         |
-| Database    | MySQL                             |
+| Layer      | Technology                   |
+| ---------- | ---------------------------- |
+| Backend    | Laravel 13 (PHP 8.2+)        |
+| Frontend   | Blade Templates + Vanilla JS |
+| Styling    | Tailwind CSS v4 via Vite     |
+| Auth/Roles | Spatie Laravel Permission    |
+| Database   | MySQL                        |

@@ -25,6 +25,31 @@ class StudentProfile extends Model
         'Form VI',
     ];
 
+    public const CLASS_LEVEL_PREFIXES = [
+        'Class One' => 'P1',
+        'Class Two' => 'P2',
+        'Class Three' => 'P3',
+        'Class Four' => 'P4',
+        'Class Five' => 'P5',
+        'Class Six' => 'P6',
+        'Class Seven' => 'P7',
+        'Form I' => 'F1',
+        'Form II' => 'F2',
+        'Form III' => 'F3',
+        'Form IV' => 'F4',
+        'Form V' => 'F5',
+        'Form VI' => 'F6',
+    ];
+
+    public static function prefixForClassLevel(?string $classLevel): string
+    {
+        if (! $classLevel) {
+            return 'GN';
+        }
+
+        return self::CLASS_LEVEL_PREFIXES[$classLevel] ?? 'GN';
+    }
+
     protected $fillable = [
         'user_id',
         'parent_id',

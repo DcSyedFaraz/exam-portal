@@ -34,9 +34,9 @@
             </div>
 
             <div>
-                <label class="form-label">Class Level <span class="text-gray-400 font-normal">(optional)</span></label>
+                <label class="form-label">Class Level <span class="text-red-500">*</span></label>
                 <select name="class_level" class="form-input @error('class_level') border-red-400 @enderror">
-                    <option value="">— No class assigned —</option>
+                    <option value="">— Select Class Level —</option>
                     @foreach($classLevels as $level)
                         <option value="{{ $level }}" {{ old('class_level') === $level ? 'selected' : '' }}>
                             {{ $level }}

@@ -7,10 +7,13 @@ use App\Http\Requests\Parent\StoreStudentRequest;
 use App\Models\ExamAttempt;
 use App\Models\StudentProfile;
 use App\Models\User;
+use App\Services\StudentNumberGenerator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class StudentController extends Controller
@@ -22,7 +25,7 @@ class StudentController extends Controller
         $examStats = [];
         foreach ($children as $child) {
             $examStats[$child->user_id] = [
-                'total'  => ExamAttempt::where('student_id', $child->user_id)->whereNotNull('submitted_at')->count(),
+                'total' => ExamAttempt::where('student_id', $child->user_id)->whereNotNull('submitted_at')->count(),
                 'latest' => ExamAttempt::where('student_id', $child->user_id)->whereNotNull('submitted_at')->with('exam')->latest('submitted_at')->first(),
             ];
         }
@@ -33,6 +36,7 @@ class StudentController extends Controller
     public function create(): View
     {
         $classLevels = StudentProfile::CLASS_LEVELS;
+
         return view('parent.students.create', compact('classLevels'));
     }
 
@@ -42,27 +46,27 @@ class StudentController extends Controller
 
         DB::transaction(function () use ($request, &$studentNumber) {
             $user = User::create([
-                'name'      => $request->name,
-                'email'     => null, // Students log in by student number + PIN, no email needed
-                'password'  => Hash::make(\Illuminate\Support\Str::random(16)),
+                'name' => $request->name,
+                'email' => null, // Students log in by student number + PIN, no email needed
+                'password' => Hash::make(Str::random(16)),
                 'is_active' => true,
             ]);
             $user->assignRole('student');
 
-            $studentNumber = $this->generateStudentNumber();
+            $studentNumber = StudentNumberGenerator::next($request->class_level);
 
             StudentProfile::create([
-                'user_id'        => $user->id,
-                'parent_id'      => auth()->id(),
+                'user_id' => $user->id,
+                'parent_id' => auth()->id(),
                 'student_number' => $studentNumber,
-                'pin'            => Hash::make($request->pin),
-                'class_level'    => $request->class_level,
+                'pin' => Hash::make($request->pin),
+                'class_level' => $request->class_level,
             ]);
         });
 
         return redirect()->route('parent.students.create')
             ->with('student_created', [
-                'name'           => $request->name,
+                'name' => $request->name,
                 'student_number' => $studentNumber,
             ]);
     }
@@ -71,10 +75,10 @@ class StudentController extends Controller
     {
         abort_unless($profile->parent_id === auth()->id(), 403);
 
-        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+        $validator = Validator::make($request->all(), [
             'pin' => ['required', 'digits:4', 'confirmed'],
         ], [
-            'pin.digits'    => 'PIN must be exactly 4 digits.',
+            'pin.digits' => 'PIN must be exactly 4 digits.',
             'pin.confirmed' => 'PIN confirmation does not match.',
         ]);
 
@@ -102,16 +106,5 @@ class StudentController extends Controller
             ->unique('exam_id'); // Only latest per exam
 
         return view('parent.students.results', compact('profile', 'attempts'));
-    }
-
-    protected function generateStudentNumber(): string
-    {
-        do {
-            $date   = now()->format('Ymd');
-            $random = str_pad(rand(0, 9999), 4, '0', STR_PAD_LEFT);
-            $number = "STU-{$date}-{$random}";
-        } while (StudentProfile::where('student_number', $number)->exists());
-
-        return $number;
     }
 }

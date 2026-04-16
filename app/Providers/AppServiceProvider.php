@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Models\User;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -19,6 +21,14 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        View::composer('components.sidebar', function ($view) {
+            $pendingParentRequestsCount = 0;
+            if (auth()->check() && auth()->user()->hasRole('admin')) {
+                $pendingParentRequestsCount = User::role('parent')
+                    ->where('parent_status', User::PARENT_STATUS_PENDING)
+                    ->count();
+            }
+            $view->with('pendingParentRequestsCount', $pendingParentRequestsCount);
+        });
     }
 }

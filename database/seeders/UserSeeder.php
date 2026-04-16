@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\StudentProfile;
 use App\Models\User;
+use App\Services\StudentNumberGenerator;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
@@ -38,12 +39,13 @@ class UserSeeder extends Seeder
         );
         $student1->assignRole('student');
 
-        if (!StudentProfile::where('user_id', $student1->id)->exists()) {
+        if (! StudentProfile::where('user_id', $student1->id)->exists()) {
             StudentProfile::create([
-                'user_id'        => $student1->id,
-                'parent_id'      => $parent1->id,
-                'student_number' => $this->generateStudentNumber(),
-                'pin'            => Hash::make('1234'),
+                'user_id' => $student1->id,
+                'parent_id' => $parent1->id,
+                'student_number' => StudentNumberGenerator::next('Class One'),
+                'pin' => Hash::make('1234'),
+                'class_level' => 'Class One',
             ]);
         }
 
@@ -53,24 +55,14 @@ class UserSeeder extends Seeder
         );
         $student2->assignRole('student');
 
-        if (!StudentProfile::where('user_id', $student2->id)->exists()) {
+        if (! StudentProfile::where('user_id', $student2->id)->exists()) {
             StudentProfile::create([
-                'user_id'        => $student2->id,
-                'parent_id'      => $parent1->id,
-                'student_number' => $this->generateStudentNumber(),
-                'pin'            => Hash::make('1234'),
+                'user_id' => $student2->id,
+                'parent_id' => $parent1->id,
+                'student_number' => StudentNumberGenerator::next('Class Two'),
+                'pin' => Hash::make('1234'),
+                'class_level' => 'Class Two',
             ]);
         }
-    }
-
-    protected function generateStudentNumber(): string
-    {
-        do {
-            $date   = now()->format('Ymd');
-            $random = str_pad(rand(0, 9999), 4, '0', STR_PAD_LEFT);
-            $number = "STU-{$date}-{$random}";
-        } while (StudentProfile::where('student_number', $number)->exists());
-
-        return $number;
     }
 }

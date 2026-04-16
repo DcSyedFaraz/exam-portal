@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\StudentProfile;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -24,20 +25,20 @@ class AuthenticatedSessionController extends Controller
         if ($request->filled('student_number')) {
             $request->validate([
                 'student_number' => 'required|string',
-                'pin'            => 'required|string',
+                'pin' => 'required|string',
             ]);
 
             $profile = StudentProfile::where('student_number', $request->student_number)
                 ->with('user')
                 ->first();
 
-            if (!$profile || !Hash::check($request->pin, $profile->pin)) {
+            if (! $profile || ! Hash::check($request->pin, $profile->pin)) {
                 throw ValidationException::withMessages([
                     'student_number' => 'Invalid student number or PIN.',
                 ]);
             }
 
-            if (!$profile->user->is_active) {
+            if (! $profile->user->is_active) {
                 throw ValidationException::withMessages([
                     'student_number' => 'Your account has been deactivated. Please contact your parent or admin.',
                 ]);
@@ -51,19 +52,47 @@ class AuthenticatedSessionController extends Controller
 
         // Staff/Parent login branch: email + password
         $request->validate([
-            'email'    => 'required|email',
+            'email' => 'required|email',
             'password' => 'required|string',
         ]);
 
-        if (!Auth::attempt(['email' => $request->email, 'password' => $request->password, 'is_active' => true])) {
+        $user = User::where('email', $request->email)->first();
+
+        if (! $user || ! Hash::check($request->password, $user->password)) {
             throw ValidationException::withMessages([
-                'email' => 'The provided credentials are incorrect or your account is inactive.',
+                'email' => 'The provided credentials are incorrect.',
             ]);
         }
 
-        $request->session()->regenerate();
+        // Only admin/parent can use email login
+        if (! $user->hasRole('admin') && ! $user->hasRole('parent')) {
+            throw ValidationException::withMessages([
+                'email' => 'Your account does not have the required role.',
+            ]);
+        }
 
-        $user = Auth::user();
+        if ($user->hasRole('parent')) {
+            $status = $user->parent_status;
+            if ($status === User::PARENT_STATUS_PENDING) {
+                throw ValidationException::withMessages([
+                    'email' => 'Your parent account is pending admin approval.',
+                ]);
+            }
+            if ($status === User::PARENT_STATUS_REJECTED) {
+                throw ValidationException::withMessages([
+                    'email' => 'Your parent account request was rejected. Please contact admin.',
+                ]);
+            }
+        }
+
+        if (! $user->is_active) {
+            throw ValidationException::withMessages([
+                'email' => 'Your account is inactive. Please contact admin.',
+            ]);
+        }
+
+        Auth::login($user);
+        $request->session()->regenerate();
 
         if ($user->hasRole('admin')) {
             return redirect()->route('admin.dashboard');
