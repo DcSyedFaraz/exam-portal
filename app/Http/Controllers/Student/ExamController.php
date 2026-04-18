@@ -66,6 +66,7 @@ class ExamController extends Controller
         $exams = Exam::where('is_published', true)
             ->where($classFilter)
             ->withCount('questions')
+            ->latest()
             ->get()
             ->map(function ($exam) use ($studentId) {
                 $exam->latest_attempt = ExamAttempt::where('student_id', $studentId)

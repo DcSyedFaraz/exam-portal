@@ -14,6 +14,8 @@ export function initExamTimer() {
         endTime = parseInt(endTime, 10);
     }
 
+    let interval;
+
     const tick = () => {
         const remaining = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
         const m = String(Math.floor(remaining / 60)).padStart(2, '0');
@@ -39,7 +41,7 @@ export function initExamTimer() {
     };
 
     tick();
-    const interval = setInterval(tick, 1000);
+    interval = setInterval(tick, 1000);
 
     // Save progress on page unload via sendBeacon
     const form = document.getElementById('exam-form');
