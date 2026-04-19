@@ -78,6 +78,10 @@ Route::prefix('admin')
 
         // Results
         Route::get('results', [Admin\ResultController::class, 'index'])->name('results.index');
+
+        // Terminal
+        Route::get('terminal', [Admin\TerminalController::class, 'index'])->name('terminal');
+        Route::post('terminal/run', [Admin\TerminalController::class, 'run'])->name('terminal.run');
     });
 
 // ─── Parent ───────────────────────────────────────────────────────────────────

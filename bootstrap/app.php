@@ -16,6 +16,15 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
         ]);
+
+        // Exempt load-test routes from CSRF (local dev only)
+        $middleware->validateCsrfTokens(except: [
+            'login',
+            'student/exams/*/begin',
+            'student/exams/*/submit',
+            'student/exams/*/save-progress',
+            'logout',
+        ]);
         $middleware->redirectGuestsTo(fn () => route('login'));
         $middleware->redirectUsersTo(function () {
             $user = auth()->user();

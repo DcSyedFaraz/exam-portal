@@ -35,20 +35,23 @@ class ExamController extends Controller
 
     protected function getOrCreateInProgressAttempt(int $studentId, int $examId): ExamAttempt
     {
-        $attempt = ExamAttempt::where('student_id', $studentId)
-            ->where('exam_id', $examId)
-            ->whereNull('submitted_at')
-            ->first();
+        return DB::transaction(function () use ($studentId, $examId) {
+            $attempt = ExamAttempt::where('student_id', $studentId)
+                ->where('exam_id', $examId)
+                ->whereNull('submitted_at')
+                ->lockForUpdate()
+                ->first();
 
-        if ($attempt) {
-            return $attempt;
-        }
+            if ($attempt) {
+                return $attempt;
+            }
 
-        return ExamAttempt::create([
-            'student_id' => $studentId,
-            'exam_id' => $examId,
-            'started_at' => now(),
-        ]);
+            return ExamAttempt::create([
+                'student_id' => $studentId,
+                'exam_id'    => $examId,
+                'started_at' => now(),
+            ]);
+        });
     }
 
     public function index()

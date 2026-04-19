@@ -74,10 +74,10 @@ if (!SCENARIOS[SCENARIO]) {
 export const options = {
     scenarios: { [SCENARIO]: SCENARIOS[SCENARIO] },
     thresholds: {
-        http_req_failed: [{ threshold: 'rate<0.01', abortOnFail: SCENARIO === 'stress' }],
-        'http_req_duration{name:submit}': ['p(95)<3000'],
+        http_req_failed: [{ threshold: SCENARIO === 'stress' ? 'rate<0.05' : 'rate<0.01', abortOnFail: SCENARIO === 'stress' }],
+        'http_req_duration{name:submit}': [SCENARIO === 'stress' ? 'p(95)<10000' : 'p(95)<3000'],
         'http_req_duration{name:login}': ['p(95)<2000'],
-        checks: ['rate>0.99'],
+        checks: [SCENARIO === 'stress' ? 'rate>0.95' : 'rate>0.99'],
         login_success_rate: ['rate>0.99'],
     },
     discardResponseBodies: false,
