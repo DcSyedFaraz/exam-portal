@@ -77,8 +77,15 @@ class TerminalController extends Controller
         $env = $this->buildEnv($isWindows);
 
         // Windows needs cmd /c to handle .cmd/.bat files
+        // Linux/macOS: wrap in sh -c so the shell resolves PATH and handles multi-word commands
+        if ($isWindows) {
+            $shellCmd = 'cmd /c ' . $resolved;
+        } else {
+            $shellCmd = ['/bin/sh', '-c', $resolved];
+        }
+
         $proc = proc_open(
-            $isWindows ? 'cmd /c ' . $resolved : $resolved,
+            $shellCmd,
             $descriptors,
             $pipes,
             $cwd,
@@ -94,9 +101,10 @@ class TerminalController extends Controller
         stream_set_blocking($pipes[1], false);
         stream_set_blocking($pipes[2], false);
 
-        $output  = '';
-        $start   = time();
-        $timeout = 60;
+        $output   = '';
+        $start    = time();
+        $timeout  = 60;
+        $exitCode = null;
 
         while (true) {
             $out = fread($pipes[1], 8192);
@@ -105,7 +113,12 @@ class TerminalController extends Controller
             if ($err !== false && $err !== '') $output .= $err;
 
             $status = proc_get_status($proc);
-            if (! $status['running']) break;
+            if (! $status['running']) {
+                // Capture exit code NOW, before pipes are closed / proc_close reaps it.
+                // On Windows proc_close() often returns -1 after the process has already exited.
+                $exitCode = (int) $status['exitcode'];
+                break;
+            }
 
             if ((time() - $start) >= $timeout) {
                 proc_terminate($proc);
@@ -116,13 +129,20 @@ class TerminalController extends Controller
             usleep(100000);
         }
 
+        // Drain any remaining output after the process ends
         $output .= stream_get_contents($pipes[1]);
         $output .= stream_get_contents($pipes[2]);
 
         fclose($pipes[1]);
         fclose($pipes[2]);
 
-        $exitCode = proc_close($proc);
+        $closed = proc_close($proc);
+
+        // Prefer the status-captured exit code; fall back to proc_close() only when
+        // we never captured one (e.g. timeout path) and proc_close gives a valid code.
+        if ($exitCode === null) {
+            $exitCode = ($closed >= 0) ? $closed : 1;
+        }
 
         // Strip ANSI colour codes and normalize line endings
         $output = preg_replace('/\x1B\[[0-9;]*[mGKHF]/u', '', $output);
@@ -209,10 +229,23 @@ class TerminalController extends Controller
             $base['PATH'] = $extraPath . (isset($base['PATH']) ? ':' . $base['PATH'] : '');
         }
 
-        // Always inject app env vars so sub-processes (artisan etc.) work correctly
-        $base['APP_ENV'] = config('app.env', 'local');
-        $base['APP_KEY'] = config('app.key', '');
+        // Always inject app env vars so sub-processes (artisan / composer etc.) work correctly
+        $base['APP_ENV']      = config('app.env', 'local');
+        $base['APP_KEY']      = config('app.key', '');
+        $base['APP_URL']      = config('app.url', 'http://localhost');
         $base['DB_CONNECTION'] = config('database.default', 'mysql');
+        $base['DB_HOST']      = config('database.connections.mysql.host', '127.0.0.1');
+        $base['DB_PORT']      = config('database.connections.mysql.port', '3306');
+        $base['DB_DATABASE']  = config('database.connections.mysql.database', 'exam_portal');
+        $base['DB_USERNAME']  = config('database.connections.mysql.username', 'root');
+        $base['DB_PASSWORD']  = config('database.connections.mysql.password', '');
+        $base['SESSION_DRIVER'] = config('session.driver', 'file');
+
+        // Remove keys that can confuse sub-processes (HTTP request headers etc.)
+        foreach (['HTTP_HOST', 'REQUEST_URI', 'REQUEST_METHOD', 'QUERY_STRING',
+                  'CONTENT_TYPE', 'CONTENT_LENGTH', 'HTTP_ACCEPT', 'HTTP_COOKIE'] as $k) {
+            unset($base[$k]);
+        }
 
         return $base;
     }
