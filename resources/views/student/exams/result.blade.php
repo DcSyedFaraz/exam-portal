@@ -49,37 +49,56 @@
         </div>
 
         <div class="flex gap-3 justify-center">
-            @if(!$attempt->is_passed)
-                <a href="{{ route('student.exams.take', $exam) }}" class="btn-primary">
-                    🔁 Retake Exam
-                </a>
-            @endif
             <a href="{{ route('student.exams.index') }}" class="btn-secondary">
                 ← Back to Exams
             </a>
         </div>
     </div>
 
-    {{-- Per-Question Breakdown --}}
+    {{-- Per-Question Breakdown (passed students only) --}}
+    @if($attempt->is_passed)
     <div class="card">
         <h3 class="text-base font-semibold font-heading text-gray-900 mb-4">Answer Breakdown</h3>
 
         <div class="space-y-4">
             @foreach($attempt->answers as $i => $answer)
-            @php $question = $answer->question; @endphp
-            <div class="rounded-xl border-l-4 p-4 {{ $answer->is_correct ? 'border-green-400 bg-green-50' : 'border-red-400 bg-red-50' }}">
+            @php
+                $question = $answer->question;
+
+                // Resolve partial-match state for match questions
+                if ($question->question_type === 'match') {
+                    $pairCount    = $question->options->count();
+                    $correctPairs = ($pairCount > 0 && $question->marks > 0)
+                        ? (int) round($answer->marks_awarded * $pairCount / $question->marks)
+                        : 0;
+                    $isPartial = $correctPairs > 0 && !$answer->is_correct;
+                } else {
+                    $pairCount    = 0;
+                    $correctPairs = 0;
+                    $isPartial    = false;
+                }
+
+                $cardClass = $answer->is_correct
+                    ? 'border-green-400 bg-green-50'
+                    : ($isPartial ? 'border-amber-400 bg-amber-50' : 'border-red-400 bg-red-50');
+
+                $iconClass = $answer->is_correct ? 'text-green-600' : ($isPartial ? 'text-amber-500' : 'text-red-500');
+                $iconGlyph = $answer->is_correct ? '✅' : ($isPartial ? '⚡' : '❌');
+            @endphp
+            <div class="rounded-xl border-l-4 p-4 {{ $cardClass }}">
                 <div class="flex items-start gap-3">
-                    <span class="{{ $answer->is_correct ? 'text-green-600' : 'text-red-500' }} text-xl mt-0.5 shrink-0">
-                        {{ $answer->is_correct ? '✅' : '❌' }}
-                    </span>
+                    <span class="{{ $iconClass }} text-xl mt-0.5 shrink-0">{{ $iconGlyph }}</span>
                     <div class="flex-1 min-w-0">
                         <p class="text-sm font-semibold text-gray-900 mb-2">
                             Q{{ $i + 1 }}. {{ $question->question_text }}
                         </p>
 
                         @if($question->question_type === 'match')
-                            <p class="text-xs text-gray-500">
-                                Match question — {{ $answer->marks_awarded }}/{{ $question->marks }} marks awarded
+                            <p class="text-xs font-medium {{ $answer->is_correct ? 'text-green-700' : ($isPartial ? 'text-amber-700' : 'text-red-600') }}">
+                                {{ $correctPairs }} of {{ $pairCount }} pair{{ $pairCount !== 1 ? 's' : '' }} correct
+                                @if($isPartial)
+                                    &mdash; partial credit awarded
+                                @endif
                             </p>
                         @else
                             <p class="text-sm {{ $answer->is_correct ? 'text-green-700' : 'text-red-600' }}">
@@ -103,6 +122,20 @@
             @endforeach
         </div>
     </div>
+    @else
+    {{-- Failed: no answers shown — encourages honest retake --}}
+    <div class="card text-center py-8">
+        <div class="text-5xl mb-4">📚</div>
+        <h3 class="text-base font-semibold text-gray-800 mb-2">Keep Studying!</h3>
+        <p class="text-sm text-gray-500 max-w-sm mx-auto">
+            Answer details are only available after passing the exam.
+            Review your notes and give it another try — you can do it!
+        </p>
+        <a href="{{ route('student.exams.instructions', $exam) }}" class="btn-primary mt-6 inline-flex">
+            🔁 Retake Exam
+        </a>
+    </div>
+    @endif
 
 </div>
 

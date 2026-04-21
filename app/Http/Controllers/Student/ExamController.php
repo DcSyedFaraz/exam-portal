@@ -186,26 +186,36 @@ class ExamController extends Controller
 
                 if ($question->question_type === 'match') {
                     // Match questions: answers[questionId][optionId] = matchPairValue
+                    // Partial credit: each correctly matched pair earns a proportional share.
                     $questionAnswers = $answers[$question->id] ?? [];
-                    $allCorrect = true;
+                    $options         = $question->options;
+                    $pairCount       = $options->count();
 
-                    foreach ($question->options as $option) {
-                        $submitted = $questionAnswers[$option->id] ?? null;
-                        if (! $submitted || $submitted !== $option->match_pair) {
-                            $allCorrect = false;
+                    $correctPairs = 0;
+                    if ($pairCount > 0) {
+                        foreach ($options as $option) {
+                            $submitted = $questionAnswers[$option->id] ?? null;
+                            if ($submitted !== null && $submitted === $option->match_pair) {
+                                $correctPairs++;
+                            }
                         }
                     }
 
-                    $isCorrect = $allCorrect && count($questionAnswers) === $question->options->count();
-                    $marksAwarded = $isCorrect ? $question->marks : 0;
-                    $selectedId = null; // Not applicable for match
+                    // round() distributes marks proportionally and is cleanly invertible:
+                    // correctPairs ≈ round(marks_awarded * pairCount / question->marks)
+                    $marksAwarded = $pairCount > 0
+                        ? (int) round($correctPairs * $question->marks / $pairCount)
+                        : 0;
+
+                    // is_correct = true only when ALL pairs are correct
+                    $isCorrect = $pairCount > 0 && ($correctPairs === $pairCount);
 
                     StudentAnswer::create([
-                        'attempt_id' => $attempt->id,
-                        'question_id' => $question->id,
+                        'attempt_id'         => $attempt->id,
+                        'question_id'        => $question->id,
                         'selected_option_id' => null,
-                        'is_correct' => $isCorrect,
-                        'marks_awarded' => $marksAwarded,
+                        'is_correct'         => $isCorrect,
+                        'marks_awarded'      => $marksAwarded,
                     ]);
                 } else {
                     // MCQ / True-False

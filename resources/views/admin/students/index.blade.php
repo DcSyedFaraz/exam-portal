@@ -23,6 +23,7 @@
                     <tr class="table-header">
                         <th class="px-4 py-3 text-left">Student</th>
                         <th class="px-4 py-3 text-left">Student Number</th>
+                        <th class="px-4 py-3 text-left">Class</th>
                         <th class="px-4 py-3 text-left">Parent</th>
                         <th class="px-4 py-3 text-center">Status</th>
                         <th class="px-4 py-3 text-center">Actions</th>
@@ -43,6 +44,15 @@
                         </td>
                         <td class="px-4 py-3 font-mono text-xs text-gray-600">
                             {{ $student->studentProfile?->student_number ?? '—' }}
+                        </td>
+                        <td class="px-4 py-3">
+                            @if($student->studentProfile?->class_level)
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                                    {{ $student->studentProfile->class_level }}
+                                </span>
+                            @else
+                                <span class="text-gray-400 text-xs">—</span>
+                            @endif
                         </td>
                         <td class="px-4 py-3 text-gray-600">
                             {{ $student->studentProfile?->parent?->name ?? '—' }}
