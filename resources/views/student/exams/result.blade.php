@@ -68,9 +68,12 @@
                 // Resolve partial-match state for match questions
                 if ($question->question_type === 'match') {
                     $pairCount    = $question->options->count();
-                    $correctPairs = ($pairCount > 0 && $question->marks > 0)
-                        ? (int) round($answer->marks_awarded * $pairCount / $question->marks)
-                        : 0;
+                    // Count directly from stored selections — never back-calculate from marks
+                    $selections   = $answer->match_selections ?? [];
+                    $correctPairs = $question->options->filter(function ($opt) use ($selections) {
+                        $sub = $selections[(string) $opt->id] ?? null;
+                        return $sub !== null && $sub === $opt->match_pair;
+                    })->count();
                     $isPartial = $correctPairs > 0 && !$answer->is_correct;
                 } else {
                     $pairCount    = 0;
@@ -94,23 +97,34 @@
                         </p>
 
                         @if($question->question_type === 'match')
-                            <p class="text-xs font-medium {{ $answer->is_correct ? 'text-green-700' : ($isPartial ? 'text-amber-700' : 'text-red-600') }}">
+                            <p class="text-xs font-medium {{ $answer->is_correct ? 'text-green-700' : ($isPartial ? 'text-amber-700' : 'text-red-600') }} mb-2">
                                 {{ $correctPairs }} of {{ $pairCount }} pair{{ $pairCount !== 1 ? 's' : '' }} correct
                                 @if($isPartial)
                                     &mdash; partial credit awarded
                                 @endif
                             </p>
+                            {{-- Correct pairs only --}}
+                            <div class="space-y-1.5">
+                                @foreach($question->options as $option)
+                                @php
+                                    $submitted = ($answer->match_selections ?? [])[(string) $option->id] ?? null;
+                                    $pairOk    = $submitted !== null && $submitted === $option->match_pair;
+                                @endphp
+                                @if($pairOk)
+                                <div class="flex items-center gap-2 text-xs rounded-lg px-2 py-1 bg-green-100">
+                                    <span class="shrink-0">✅</span>
+                                    <span class="font-medium text-gray-800 flex-1 min-w-0">{{ $option->option_text }}</span>
+                                    <svg class="w-3 h-3 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+                                    <span class="flex-1 min-w-0 text-green-700 font-medium">{{ $option->match_pair }}</span>
+                                </div>
+                                @endif
+                                @endforeach
+                            </div>
                         @else
                             <p class="text-sm {{ $answer->is_correct ? 'text-green-700' : 'text-red-600' }}">
                                 Your answer:
                                 <strong>{{ $answer->selectedOption?->option_text ?? 'Not answered' }}</strong>
                             </p>
-                            @if(!$answer->is_correct && $question->correctOption)
-                            <p class="text-sm text-green-700 mt-1">
-                                Correct answer:
-                                <strong>{{ $question->correctOption->option_text }}</strong>
-                            </p>
-                            @endif
                         @endif
 
                         <p class="text-xs text-gray-400 mt-1">
@@ -123,17 +137,84 @@
         </div>
     </div>
     @else
-    {{-- Failed: no answers shown — encourages honest retake --}}
-    <div class="card text-center py-8">
-        <div class="text-5xl mb-4">📚</div>
-        <h3 class="text-base font-semibold text-gray-800 mb-2">Keep Studying!</h3>
-        <p class="text-sm text-gray-500 max-w-sm mx-auto">
-            Answer details are only available after passing the exam.
-            Review your notes and give it another try — you can do it!
-        </p>
-        <a href="{{ route('student.exams.instructions', $exam) }}" class="btn-primary mt-6 inline-flex">
-            🔁 Retake Exam
-        </a>
+    {{-- Failed: show match pair correct answers only; MCQ answers stay hidden --}}
+    <div class="card mb-6">
+        <div class="flex items-center gap-3 mb-4">
+            <span class="text-2xl">📚</span>
+            <div>
+                <h3 class="text-base font-semibold text-gray-800">Keep Studying!</h3>
+                <p class="text-xs text-gray-500">Match question answers are shown below to help you review. MCQ answers are revealed after passing.</p>
+            </div>
+        </div>
+
+        @php
+            $matchAnswers = $attempt->answers->filter(fn($a) => $a->question?->question_type === 'match');
+        @endphp
+
+        @if($matchAnswers->isNotEmpty())
+        <div class="space-y-4">
+            @foreach($matchAnswers as $answer)
+            @php
+                $question     = $answer->question;
+                $pairCount    = $question->options->count();
+                $selections   = $answer->match_selections ?? [];
+                $correctPairs = $question->options->filter(function ($opt) use ($selections) {
+                    $sub = $selections[(string) $opt->id] ?? null;
+                    return $sub !== null && $sub === $opt->match_pair;
+                })->count();
+                $isPartial = $correctPairs > 0 && !$answer->is_correct;
+
+                $cardClass = $answer->is_correct
+                    ? 'border-green-400 bg-green-50'
+                    : ($isPartial ? 'border-amber-400 bg-amber-50' : 'border-red-400 bg-red-50');
+                $iconGlyph = $answer->is_correct ? '✅' : ($isPartial ? '⚡' : '❌');
+                $iconClass = $answer->is_correct ? 'text-green-600' : ($isPartial ? 'text-amber-500' : 'text-red-500');
+            @endphp
+            <div class="rounded-xl border-l-4 p-4 {{ $cardClass }}">
+                <div class="flex items-start gap-3">
+                    <span class="{{ $iconClass }} text-xl mt-0.5 shrink-0">{{ $iconGlyph }}</span>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-semibold text-gray-900 mb-2">
+                            {{ $question->question_text }}
+                        </p>
+                        <p class="text-xs font-medium {{ $answer->is_correct ? 'text-green-700' : ($isPartial ? 'text-amber-700' : 'text-red-600') }} mb-2">
+                            {{ $correctPairs }} of {{ $pairCount }} pair{{ $pairCount !== 1 ? 's' : '' }} correct
+                            @if($isPartial)
+                                &mdash; partial credit awarded
+                            @endif
+                        </p>
+                        {{-- Correct pairs only --}}
+                        <div class="mt-2 space-y-1.5">
+                            @foreach($question->options as $option)
+                            @php
+                                $submitted = ($answer->match_selections ?? [])[(string) $option->id] ?? null;
+                                $pairOk    = $submitted !== null && $submitted === $option->match_pair;
+                            @endphp
+                            @if($pairOk)
+                            <div class="flex items-center gap-2 text-xs rounded-lg px-2 py-1 bg-green-100">
+                                <span class="shrink-0">✅</span>
+                                <span class="font-medium text-gray-800 flex-1 min-w-0">{{ $option->option_text }}</span>
+                                <svg class="w-3 h-3 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+                                <span class="flex-1 min-w-0 text-green-700 font-medium">{{ $option->match_pair }}</span>
+                            </div>
+                            @endif
+                            @endforeach
+                        </div>
+                        <p class="text-xs text-gray-400 mt-2">
+                            {{ $answer->marks_awarded }}/{{ $question->marks }} mark(s)
+                        </p>
+                    </div>
+                </div>
+            </div>
+            @endforeach
+        </div>
+        @endif
+
+        <div class="mt-6 text-center">
+            <a href="{{ route('student.exams.instructions', $exam) }}" class="btn-primary inline-flex">
+                🔁 Retake Exam
+            </a>
+        </div>
     </div>
     @endif
 

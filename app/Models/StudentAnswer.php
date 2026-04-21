@@ -13,6 +13,7 @@ class StudentAnswer extends Model
         'attempt_id',
         'question_id',
         'selected_option_id',
+        'match_selections',
         'is_correct',
         'marks_awarded',
     ];
@@ -20,7 +21,8 @@ class StudentAnswer extends Model
     protected function casts(): array
     {
         return [
-            'is_correct' => 'boolean',
+            'is_correct'       => 'boolean',
+            'match_selections' => 'array',  // { "optionId": "submittedValue", ... }
         ];
     }
 

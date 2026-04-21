@@ -191,10 +191,14 @@ class ExamController extends Controller
                     $options         = $question->options;
                     $pairCount       = $options->count();
 
-                    $correctPairs = 0;
+                    $correctPairs     = 0;
+                    $matchSelections  = []; // store what the student submitted per option
+
                     if ($pairCount > 0) {
                         foreach ($options as $option) {
                             $submitted = $questionAnswers[$option->id] ?? null;
+                            // Store raw submission (null if not answered)
+                            $matchSelections[(string) $option->id] = $submitted;
                             if ($submitted !== null && $submitted === $option->match_pair) {
                                 $correctPairs++;
                             }
@@ -214,6 +218,7 @@ class ExamController extends Controller
                         'attempt_id'         => $attempt->id,
                         'question_id'        => $question->id,
                         'selected_option_id' => null,
+                        'match_selections'   => $matchSelections,
                         'is_correct'         => $isCorrect,
                         'marks_awarded'      => $marksAwarded,
                     ]);
