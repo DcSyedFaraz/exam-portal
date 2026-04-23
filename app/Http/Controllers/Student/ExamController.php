@@ -268,6 +268,8 @@ class ExamController extends Controller
             ->with(['answers.question.options', 'answers.question.correctOption', 'answers.selectedOption'])
             ->firstOrFail();
 
+        $exam->load('questions.options');
+
         return view('student.exams.result', compact('exam', 'attempt'));
     }
 
