@@ -160,6 +160,51 @@
                 </button>
             </form>
 
+            {{-- Features + contact: left panel is lg+ only; show same info on mobile / tablet --}}
+            <div class="lg:hidden mt-8 pt-8 border-t border-gray-200">
+                <div class="space-y-3 text-gray-800">
+                    <div class="flex items-center gap-3 text-sm">
+                        <svg class="w-5 h-5 text-yellow-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Timed exams with instant results
+                    </div>
+                    <div class="flex items-center gap-3 text-sm">
+                        <svg class="w-5 h-5 text-yellow-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        MCQ, True/False, and Match questions
+                    </div>
+                    <div class="flex items-center gap-3 text-sm">
+                        <svg class="w-5 h-5 text-yellow-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Parent &amp; student progress tracking
+                    </div>
+                </div>
+
+                <div class="mt-6">
+                    <p class="text-[11px] font-semibold uppercase tracking-widest text-gray-500 mb-3">Contact</p>
+                    <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-4 space-y-3.5 shadow-sm">
+                        <div class="flex items-start gap-3 text-sm text-gray-900">
+                            <span class="mt-0.5 inline-flex shrink-0 rounded-md bg-gray-200/80 p-1.5 text-gray-900" aria-hidden="true">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                            </span>
+                            <span class="font-medium leading-snug">Dodoma, Tanzania</span>
+                        </div>
+                        <div class="flex items-start gap-3 text-sm">
+                            <span class="mt-0.5 inline-flex shrink-0 rounded-md bg-gray-200/80 p-1.5 text-gray-900" aria-hidden="true">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+                            </span>
+                            <div class="flex flex-col gap-1.5 font-medium">
+                                <a href="tel:+255744950150" class="text-gray-900 underline decoration-gray-900/30 underline-offset-2">+255 744 950 150</a>
+                                <a href="tel:+255786283282" class="text-gray-900 underline decoration-gray-900/30 underline-offset-2">+255 786 283 282</a>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-3 text-sm">
+                            <span class="mt-0.5 inline-flex shrink-0 rounded-md bg-gray-200/80 p-1.5 text-gray-900" aria-hidden="true">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                            </span>
+                            <a href="mailto:info@rmstechnology.co.tz" class="font-medium text-gray-900 break-all underline decoration-gray-900/30 underline-offset-2">info@rmstechnology.co.tz</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <p class="text-center text-xs text-gray-400 mt-8">
                 {{ config('app_settings.name') }} v{{ config('app_settings.version') }}
             </p>
