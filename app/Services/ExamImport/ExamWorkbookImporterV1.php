@@ -219,29 +219,84 @@ final class ExamWorkbookImporterV1
                 $sorted = collect($qList)->sortBy(fn ($q) => $q['order'])->values()->all();
 
                 foreach ($sorted as $q) {
-                    $row = $q['data'];
-                    $type = $q['kind'];
+                    $row   = $q['data'];
+                    $type  = $q['kind'];
                     $order = $q['order'];
 
-                    $optionsPayload = $this->buildOptionsPayloadFriendly($type, $row, $order, $pairsMap);
+                    $legacyTypes = ['mcq', 'true_false', 'match'];
 
-                    QuestionPayloadFactory::assertExactlyOneCorrect($type, $optionsPayload);
+                    if (in_array($type, $legacyTypes, true)) {
+                        $optionsPayload = $this->buildOptionsPayloadFriendly($type, $row, $order, $pairsMap);
 
-                    $question = Question::create([
-                        'exam_id' => $exam->id,
-                        'question_text' => trim((string) ($row['your_question'] ?? '')),
-                        'question_type' => $type,
-                        'marks' => (int) ($row['marks_for_this_question'] ?? 1),
-                        'order' => $order,
-                    ]);
+                        QuestionPayloadFactory::assertExactlyOneCorrect($type, $optionsPayload);
 
-                    foreach ($optionsPayload as $opt) {
-                        Option::create([
-                            'question_id' => $question->id,
-                            'option_text' => $opt['text'],
-                            'is_correct' => (bool) filter_var($opt['is_correct'], FILTER_VALIDATE_BOOL),
-                            'match_pair' => $opt['match_pair'] ?? null,
+                        $question = Question::create([
+                            'exam_id'       => $exam->id,
+                            'question_text' => trim((string) ($row['your_question'] ?? '')),
+                            'question_type' => $type,
+                            'marks'         => (int) ($row['marks_for_this_question'] ?? 1),
+                            'order'         => $order,
                         ]);
+
+                        foreach ($optionsPayload as $opt) {
+                            Option::create([
+                                'question_id' => $question->id,
+                                'option_text' => $opt['text'],
+                                'is_correct'  => (bool) filter_var($opt['is_correct'], FILTER_VALIDATE_BOOL),
+                                'match_pair'  => $opt['match_pair'] ?? null,
+                            ]);
+                        }
+                    } else {
+                        $wordBankItems = null;
+                        if ($type === 'word_bank' && ! empty(trim((string) ($row['word_bank_items'] ?? '')))) {
+                            $wordBankItems = array_map('trim', explode(',', (string) $row['word_bank_items']));
+                        }
+
+                        $question = Question::create([
+                            'exam_id'             => $exam->id,
+                            'question_text'       => strip_tags(trim((string) ($row['your_question'] ?? ''))),
+                            'question_type'       => $type,
+                            'marks'               => (int) ($row['marks_for_this_question'] ?? 1),
+                            'order'               => $order,
+                            'correct_answer_text' => in_array($type, ['fill_blank', 'ai_evaluated'], true)
+                                                        ? strip_tags(trim((string) ($row['correct_answer'] ?? '')))
+                                                        : null,
+                            'word_bank_items'     => $wordBankItems,
+                            'ai_max_marks'        => $type === 'ai_evaluated'
+                                                        ? (int) ($row['marks_for_this_question'] ?? 1)
+                                                        : null,
+                        ]);
+
+                        // Picture: create sub-items from columns sub_q_a, sub_ans_a, sub_marks_a ...
+                        if ($type === 'picture') {
+                            foreach (['a', 'b', 'c', 'd', 'e', 'f'] as $label) {
+                                $subQ = trim((string) ($row["sub_q_{$label}"] ?? ''));
+                                if ($subQ !== '') {
+                                    $question->subItems()->create([
+                                        'label'             => $label,
+                                        'sub_question_text' => strip_tags($subQ),
+                                        'correct_answer'    => strip_tags(trim((string) ($row["sub_ans_{$label}"] ?? ''))),
+                                        'marks'             => (int) ($row["sub_marks_{$label}"] ?? 1),
+                                        'order'             => ord($label) - 97,
+                                    ]);
+                                }
+                            }
+                        }
+
+                        // Word bank: options from option_a = "statement|correct_word"
+                        if ($type === 'word_bank') {
+                            foreach (['a', 'b', 'c', 'd', 'e', 'f', 'g'] as $label) {
+                                $opt = trim((string) ($row["option_{$label}"] ?? ''));
+                                if ($opt !== '') {
+                                    [$statement, $correctWord] = array_pad(explode('|', $opt, 2), 2, '');
+                                    $question->options()->create([
+                                        'option_text' => trim($statement),
+                                        'match_pair'  => trim($correctWord),
+                                        'is_correct'  => true,
+                                    ]);
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -343,6 +398,19 @@ final class ExamWorkbookImporterV1
             }
         }
 
+        if ($kind === 'fill_blank' || $kind === 'ai_evaluated') {
+            $ca = trim((string) ($row['correct_answer'] ?? ''));
+            if ($ca === '') {
+                $errs[] = ['Questions', $rowNum, $ref, 'Fill-in-blank and open-ended questions need a model answer in the "Correct answer" column.'];
+            }
+        }
+
+        if ($kind === 'word_bank') {
+            if (empty(trim((string) ($row['word_bank_items'] ?? '')))) {
+                $errs[] = ['Questions', $rowNum, $ref, 'Word bank questions need items in the "word_bank_items" column (comma-separated).'];
+            }
+        }
+
         return $errs;
     }
 
@@ -363,6 +431,22 @@ final class ExamWorkbookImporterV1
 
         if (preg_match('/\b(multiple|mcq|choice)\b/i', $r)) {
             return 'mcq';
+        }
+
+        if (preg_match('/\bpicture\b/i', $r)) {
+            return 'picture';
+        }
+
+        if (preg_match('/\bfill.*(blank|in)\b|\bblank\b/i', $r)) {
+            return 'fill_blank';
+        }
+
+        if (preg_match('/\bword.?bank\b|\bchoose.?from\b/i', $r)) {
+            return 'word_bank';
+        }
+
+        if (preg_match('/\bopen.?ended\b|\bai.?eval\b|\bessay\b/i', $r)) {
+            return 'ai_evaluated';
         }
 
         return null;

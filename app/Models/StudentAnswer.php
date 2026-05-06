@@ -14,15 +14,19 @@ class StudentAnswer extends Model
         'question_id',
         'selected_option_id',
         'match_selections',
+        'answer_text',
         'is_correct',
         'marks_awarded',
+        'ai_feedback',
+        'ai_evaluated',
     ];
 
     protected function casts(): array
     {
         return [
             'is_correct'       => 'boolean',
-            'match_selections' => 'array',  // { "optionId": "submittedValue", ... }
+            'ai_evaluated'     => 'boolean',
+            'match_selections' => 'array',
         ];
     }
 
