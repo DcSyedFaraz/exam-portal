@@ -143,6 +143,79 @@
                                         </div>
                                     @endforeach
                                 </div>
+
+                            {{-- Picture --}}
+                            @elseif($question->question_type === 'picture')
+                                @if($question->image_path)
+                                    <img src="{{ Storage::url($question->image_path) }}"
+                                         alt="Question Image"
+                                         class="w-full max-h-72 object-contain rounded-lg mb-4 border border-gray-200">
+                                @endif
+                                <div class="space-y-3">
+                                    @foreach($question->subItems as $sub)
+                                    <div class="p-3 bg-gray-50 rounded-lg">
+                                        <label class="form-label text-gray-600 text-sm">({{ $sub->label }}) {{ $sub->sub_question_text }}
+                                            <span class="text-xs text-gray-400">({{ $sub->marks }} mark{{ $sub->marks !== 1 ? 's' : '' }})</span>
+                                        </label>
+                                        <textarea
+                                            name="answers[{{ $question->id }}][sub][{{ $sub->id }}]"
+                                            rows="2"
+                                            maxlength="500"
+                                            class="form-input mt-1 text-sm"
+                                            placeholder="Your answer..."
+                                            onchange="onAnswerChange({{ $question->id }})"></textarea>
+                                    </div>
+                                    @endforeach
+                                </div>
+
+                            {{-- Fill in the Blank --}}
+                            @elseif($question->question_type === 'fill_blank')
+                                <input
+                                    type="text"
+                                    name="answers[{{ $question->id }}][text]"
+                                    maxlength="500"
+                                    class="form-input"
+                                    placeholder="Type your answer here..."
+                                    autocomplete="off"
+                                    onchange="onAnswerChange({{ $question->id }})">
+
+                            {{-- Word Bank --}}
+                            @elseif($question->question_type === 'word_bank')
+                                <div class="flex flex-wrap gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg mb-4">
+                                    @foreach($question->word_bank_items ?? [] as $word)
+                                    <span class="px-3 py-1 bg-white border border-yellow-300 rounded-full text-sm font-medium text-gray-700">
+                                        {{ $word }}
+                                    </span>
+                                    @endforeach
+                                </div>
+                                <div class="space-y-3">
+                                    @foreach($question->options as $option)
+                                    <div class="flex items-center gap-3 p-3 rounded-xl bg-gray-50">
+                                        <span class="text-sm text-gray-700 flex-1">{{ $option->option_text }}</span>
+                                        <select name="answers[{{ $question->id }}][word_bank][{{ $option->id }}]"
+                                                class="form-input w-40 text-sm"
+                                                onchange="onAnswerChange({{ $question->id }})">
+                                            <option value="">-- Select --</option>
+                                            @foreach($question->word_bank_items ?? [] as $word)
+                                            <option value="{{ $word }}">{{ $word }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    @endforeach
+                                </div>
+
+                            {{-- AI Evaluated (Open Ended) --}}
+                            @elseif($question->question_type === 'ai_evaluated')
+                                <textarea
+                                    name="answers[{{ $question->id }}][text]"
+                                    rows="5"
+                                    maxlength="1000"
+                                    class="form-input"
+                                    placeholder="Write your answer here..."
+                                    oninput="onAnswerChange({{ $question->id }}); updateCharCount(this)"></textarea>
+                                <p class="text-xs text-gray-400 mt-1 text-right">
+                                    <span class="char-count">0</span>/1000 characters
+                                </p>
                             @endif
                         </div>
                     @endforeach
@@ -199,6 +272,11 @@
                 behavior: 'smooth',
                 block: 'center'
             });
+        }
+
+        function updateCharCount(el) {
+            const countEl = el.nextElementSibling?.querySelector('.char-count');
+            if (countEl) countEl.textContent = el.value.length;
         }
 
         // Highlight selected radio labels on load and on change

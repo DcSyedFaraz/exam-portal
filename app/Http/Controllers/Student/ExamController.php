@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Exam;
 use App\Models\ExamAttempt;
 use App\Models\StudentAnswer;
+use App\Models\StudentSubAnswer;
+use App\Services\GeminiEvaluationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -96,7 +98,6 @@ class ExamController extends Controller
                 ->with('info', 'You have already passed this exam.');
         }
 
-        // If exam is already started (in-progress attempt), go straight back to the exam
         $inProgress = ExamAttempt::where('student_id', $studentId)
             ->where('exam_id', $exam->id)
             ->whereNull('submitted_at')
@@ -122,9 +123,8 @@ class ExamController extends Controller
                 ->with('info', 'You have already passed this exam.');
         }
 
-        // On retake after fail: delete the old submitted attempt to keep only latest
         if ($latestAttempt && ! $latestAttempt->is_passed) {
-            $latestAttempt->delete(); // cascades to student_answers
+            $latestAttempt->delete();
         }
 
         $this->getOrCreateInProgressAttempt($studentId, $exam->id);
@@ -137,7 +137,6 @@ class ExamController extends Controller
         $studentId = auth()->id();
         $this->ensureExamAvailableForStudent($exam);
 
-        // Check if student already passed — no retake allowed
         $latestAttempt = $this->latestSubmittedAttempt($studentId, $exam->id);
 
         if ($latestAttempt && $latestAttempt->is_passed) {
@@ -145,17 +144,14 @@ class ExamController extends Controller
                 ->with('info', 'You have already passed this exam.');
         }
 
-        // On retake: delete the old attempt to keep only latest
         if ($latestAttempt && ! $latestAttempt->is_passed) {
-            $latestAttempt->delete(); // cascades to student_answers
+            $latestAttempt->delete();
         }
 
-        // Ensure attempt exists (e.g. direct-link to /take)
         $attempt = $this->getOrCreateInProgressAttempt($studentId, $exam->id);
 
-        $questions = $exam->questions()->with('options')->get();
+        $questions = $exam->questions()->with('options', 'subItems')->get();
 
-        // Load any saved answers for this attempt
         $savedAnswers = StudentAnswer::where('attempt_id', $attempt->id)
             ->pluck('selected_option_id', 'question_id');
 
@@ -173,82 +169,165 @@ class ExamController extends Controller
 
         $answers = $request->input('answers', []);
 
-        DB::transaction(function () use ($attempt, $exam, $answers) {
+        $gemini = app(GeminiEvaluationService::class);
+
+        DB::transaction(function () use ($attempt, $exam, $answers, $gemini) {
             $totalScore = 0;
 
-            // Delete any previously saved progress answers
             $attempt->answers()->delete();
 
-            foreach ($exam->questions()->with('options')->get() as $question) {
-                $isCorrect = false;
-                $marksAwarded = 0;
-                $selectedId = null;
+            foreach ($exam->questions()->with('options', 'subItems')->get() as $question) {
+                $answerData = $answers[$question->id] ?? null;
 
-                if ($question->question_type === 'match') {
-                    // Match questions: answers[questionId][optionId] = matchPairValue
-                    // Partial credit: each correctly matched pair earns a proportional share.
-                    $questionAnswers = $answers[$question->id] ?? [];
-                    $options         = $question->options;
-                    $pairCount       = $options->count();
+                match ($question->question_type) {
 
-                    $correctPairs     = 0;
-                    $matchSelections  = []; // store what the student submitted per option
+                    'mcq', 'true_false' => (function () use ($question, $answerData, $attempt, &$totalScore) {
+                        $selectedId = $answerData['option'] ?? $answerData ?? null;
+                        $isCorrect = false;
+                        $marksAwarded = 0;
+                        if ($selectedId) {
+                            $isCorrect = $question->options()
+                                ->where('id', $selectedId)
+                                ->where('is_correct', true)
+                                ->exists();
+                            $marksAwarded = $isCorrect ? $question->marks : 0;
+                        }
+                        $totalScore += $marksAwarded;
+                        StudentAnswer::create([
+                            'attempt_id'         => $attempt->id,
+                            'question_id'        => $question->id,
+                            'selected_option_id' => $selectedId,
+                            'is_correct'         => $isCorrect,
+                            'marks_awarded'      => $marksAwarded,
+                            'ai_evaluated'       => false,
+                        ]);
+                    })(),
 
-                    if ($pairCount > 0) {
-                        foreach ($options as $option) {
-                            $submitted = $questionAnswers[$option->id] ?? null;
-                            // Store raw submission (null if not answered)
-                            $matchSelections[(string) $option->id] = $submitted;
-                            if ($submitted !== null && $submitted === $option->match_pair) {
-                                $correctPairs++;
+                    'match' => (function () use ($question, $answerData, $attempt, &$totalScore) {
+                        $questionAnswers = $answerData ?? [];
+                        $options  = $question->options;
+                        $pairCount = $options->count();
+                        $correctPairs = 0;
+                        $matchSelections = [];
+
+                        if ($pairCount > 0) {
+                            foreach ($options as $option) {
+                                $submitted = $questionAnswers[$option->id] ?? null;
+                                $matchSelections[(string) $option->id] = $submitted;
+                                if ($submitted !== null && $submitted === $option->match_pair) {
+                                    $correctPairs++;
+                                }
                             }
                         }
-                    }
 
-                    // round() distributes marks proportionally and is cleanly invertible:
-                    // correctPairs ≈ round(marks_awarded * pairCount / question->marks)
-                    $marksAwarded = $pairCount > 0
-                        ? (int) round($correctPairs * $question->marks / $pairCount)
-                        : 0;
+                        $marksAwarded = $pairCount > 0
+                            ? (int) round($correctPairs * $question->marks / $pairCount)
+                            : 0;
+                        $isCorrect = $pairCount > 0 && ($correctPairs === $pairCount);
+                        $totalScore += $marksAwarded;
 
-                    // is_correct = true only when ALL pairs are correct
-                    $isCorrect = $pairCount > 0 && ($correctPairs === $pairCount);
+                        StudentAnswer::create([
+                            'attempt_id'         => $attempt->id,
+                            'question_id'        => $question->id,
+                            'selected_option_id' => null,
+                            'match_selections'   => $matchSelections,
+                            'is_correct'         => $isCorrect,
+                            'marks_awarded'      => $marksAwarded,
+                            'ai_evaluated'       => false,
+                        ]);
+                    })(),
 
-                    StudentAnswer::create([
-                        'attempt_id'         => $attempt->id,
-                        'question_id'        => $question->id,
-                        'selected_option_id' => null,
-                        'match_selections'   => $matchSelections,
-                        'is_correct'         => $isCorrect,
-                        'marks_awarded'      => $marksAwarded,
-                    ]);
-                } else {
-                    // MCQ / True-False
-                    $selectedId = $answers[$question->id] ?? null;
+                    'fill_blank' => (function () use ($question, $answerData, $attempt, $gemini, &$totalScore) {
+                        $text   = strip_tags(trim($answerData['text'] ?? ''));
+                        $result = $gemini->evaluate($text, $question->correct_answer_text ?? '', $question->marks, $question->question_text);
+                        $totalScore += $result['marks'];
+                        StudentAnswer::create([
+                            'attempt_id'    => $attempt->id,
+                            'question_id'   => $question->id,
+                            'answer_text'   => mb_substr($text, 0, 500),
+                            'is_correct'    => $result['marks'] >= $question->marks,
+                            'marks_awarded' => $result['marks'],
+                            'ai_feedback'   => $result['feedback'],
+                            'ai_evaluated'  => true,
+                        ]);
+                    })(),
 
-                    if ($selectedId) {
-                        $isCorrect = $question->options()
-                            ->where('id', $selectedId)
-                            ->where('is_correct', true)
-                            ->exists();
-                        $marksAwarded = $isCorrect ? $question->marks : 0;
-                    }
+                    'ai_evaluated' => (function () use ($question, $answerData, $attempt, $gemini, &$totalScore) {
+                        $text   = strip_tags(trim($answerData['text'] ?? ''));
+                        $result = $gemini->evaluate($text, $question->correct_answer_text ?? '', $question->marks, $question->question_text);
+                        $totalScore += $result['marks'];
+                        StudentAnswer::create([
+                            'attempt_id'    => $attempt->id,
+                            'question_id'   => $question->id,
+                            'answer_text'   => mb_substr($text, 0, 1000),
+                            'is_correct'    => $result['marks'] >= ($question->marks * 0.5),
+                            'marks_awarded' => $result['marks'],
+                            'ai_feedback'   => $result['feedback'],
+                            'ai_evaluated'  => true,
+                        ]);
+                    })(),
 
-                    StudentAnswer::create([
-                        'attempt_id' => $attempt->id,
-                        'question_id' => $question->id,
-                        'selected_option_id' => $selectedId,
-                        'is_correct' => $isCorrect,
-                        'marks_awarded' => $marksAwarded,
-                    ]);
-                }
+                    'word_bank' => (function () use ($question, $answerData, $attempt, &$totalScore) {
+                        $wordBankAnswers = $answerData['word_bank'] ?? [];
+                        $correctCount   = 0;
+                        $totalOptions   = $question->options->count();
 
-                $totalScore += $marksAwarded;
+                        foreach ($question->options as $option) {
+                            $selected = $wordBankAnswers[$option->id] ?? null;
+                            if ($selected && strtolower(trim($selected)) === strtolower(trim($option->match_pair))) {
+                                $correctCount++;
+                            }
+                        }
+
+                        $marksPerItem = $totalOptions > 0 ? $question->marks / $totalOptions : 0;
+                        $marksAwarded = round($correctCount * $marksPerItem, 2);
+                        $totalScore  += $marksAwarded;
+
+                        StudentAnswer::create([
+                            'attempt_id'    => $attempt->id,
+                            'question_id'   => $question->id,
+                            'answer_text'   => json_encode($wordBankAnswers),
+                            'is_correct'    => $correctCount === $totalOptions,
+                            'marks_awarded' => $marksAwarded,
+                            'ai_evaluated'  => false,
+                        ]);
+                    })(),
+
+                    'picture' => (function () use ($question, $answerData, $attempt, $gemini, &$totalScore) {
+                        $subAnswers   = $answerData['sub'] ?? [];
+                        $questionMarks = 0;
+
+                        foreach ($question->subItems as $sub) {
+                            $text   = strip_tags(trim($subAnswers[$sub->id] ?? ''));
+                            $result = $gemini->evaluate($text, $sub->correct_answer, $sub->marks, $sub->sub_question_text);
+                            $questionMarks += $result['marks'];
+                            StudentSubAnswer::create([
+                                'attempt_id'    => $attempt->id,
+                                'sub_item_id'   => $sub->id,
+                                'answer_text'   => mb_substr($text, 0, 500),
+                                'marks_awarded' => $result['marks'],
+                                'ai_feedback'   => $result['feedback'],
+                                'ai_evaluated'  => true,
+                            ]);
+                        }
+
+                        $totalScore += $questionMarks;
+                        StudentAnswer::create([
+                            'attempt_id'    => $attempt->id,
+                            'question_id'   => $question->id,
+                            'marks_awarded' => $questionMarks,
+                            'ai_evaluated'  => true,
+                            'is_correct'    => false,
+                        ]);
+                    })(),
+
+                    default => null,
+                };
             }
 
             $attempt->update([
-                'score' => $totalScore,
-                'is_passed' => $totalScore >= $exam->passing_marks,
+                'score'        => $totalScore,
+                'is_passed'    => $totalScore >= $exam->passing_marks,
                 'submitted_at' => now(),
             ]);
         });
@@ -265,12 +344,22 @@ class ExamController extends Controller
             ->where('exam_id', $exam->id)
             ->whereNotNull('submitted_at')
             ->latest('submitted_at')
-            ->with(['answers.question.options', 'answers.question.correctOption', 'answers.selectedOption'])
+            ->with([
+                'answers.question.options',
+                'answers.question.correctOption',
+                'answers.question.subItems',
+                'answers.selectedOption',
+            ])
             ->firstOrFail();
 
-        $exam->load('questions.options');
+        $exam->load('questions.options', 'questions.subItems');
 
-        return view('student.exams.result', compact('exam', 'attempt'));
+        // Load sub-answers for picture questions, keyed by sub_item_id
+        $subAnswers = StudentSubAnswer::where('attempt_id', $attempt->id)
+            ->get()
+            ->keyBy('sub_item_id');
+
+        return view('student.exams.result', compact('exam', 'attempt', 'subAnswers'));
     }
 
     public function saveProgress(Request $request, Exam $exam): Response
@@ -291,7 +380,7 @@ class ExamController extends Controller
         foreach ($answers as $questionId => $optionId) {
             if (is_array($optionId)) {
                 continue;
-            } // skip match answers in beacon save
+            }
 
             StudentAnswer::updateOrCreate(
                 ['attempt_id' => $attempt->id, 'question_id' => $questionId],
