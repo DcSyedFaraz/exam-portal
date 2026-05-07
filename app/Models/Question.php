@@ -19,6 +19,7 @@ class Question extends Model
         'correct_answer_text',
         'word_bank_items',
         'ai_max_marks',
+        'fill_blank_grading',
     ];
 
     protected function casts(): array

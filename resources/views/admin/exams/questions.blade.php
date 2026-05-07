@@ -179,6 +179,8 @@ async function saveNewTypeQuestion(type, questionId, errorEl) {
     } else if (type === 'fill_blank') {
         formData.append('question_text', document.getElementById('fill-blank-question').value);
         formData.append('correct_answer_text', document.getElementById('fill-blank-answer').value);
+        const gradingMode = document.querySelector('input[name="fill_blank_grading_radio"]:checked')?.value ?? 'exact';
+        formData.append('fill_blank_grading', gradingMode);
 
     } else if (type === 'word_bank') {
         formData.append('question_text', document.getElementById('word-bank-question').value);
@@ -309,6 +311,10 @@ function editQuestion(id) {
     if (q.question_type === 'fill_blank') {
         document.getElementById('fill-blank-question').value = q.question_text;
         document.getElementById('fill-blank-answer').value = q.correct_answer_text || '';
+        const grading = q.fill_blank_grading || 'exact';
+        document.querySelectorAll('input[name="fill_blank_grading_radio"]').forEach(r => {
+            r.checked = r.value === grading;
+        });
     }
     if (q.question_type === 'word_bank') {
         document.getElementById('word-bank-question').value = q.question_text;
@@ -502,6 +508,25 @@ function updateCharCount(el, max) {
                     <label class="form-label">Correct Answer(s) <span class="text-red-500">*</span></label>
                     <input type="text" id="fill-blank-answer" placeholder="Dodoma" class="form-input">
                     <p class="text-xs text-gray-400 mt-1">For multiple blanks, separate with | e.g. Dodoma|Tanzania</p>
+                </div>
+                <div>
+                    <label class="form-label">Grading Mode</label>
+                    <div class="flex gap-5 mt-1">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" id="fill-grading-exact" name="fill_blank_grading_radio" value="exact"
+                                   checked class="text-yellow-400 focus:ring-yellow-400 w-4 h-4">
+                            <span class="text-sm font-medium">Exact Match
+                                <span class="text-xs text-gray-400 font-normal">(compare saved words)</span>
+                            </span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" id="fill-grading-ai" name="fill_blank_grading_radio" value="ai"
+                                   class="text-yellow-400 focus:ring-yellow-400 w-4 h-4">
+                            <span class="text-sm font-medium">AI Grading
+                                <span class="text-xs text-gray-400 font-normal">(Gemini)</span>
+                            </span>
+                        </label>
+                    </div>
                 </div>
             </div>
 

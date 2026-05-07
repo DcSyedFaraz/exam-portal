@@ -238,18 +238,46 @@ class ExamController extends Controller
                     })(),
 
                     'fill_blank' => (function () use ($question, $answerData, $attempt, $gemini, &$totalScore) {
-                        $text   = strip_tags(trim($answerData['text'] ?? ''));
-                        $result = $gemini->evaluate($text, $question->correct_answer_text ?? '', $question->marks, $question->question_text);
-                        $totalScore += $result['marks'];
-                        StudentAnswer::create([
-                            'attempt_id'    => $attempt->id,
-                            'question_id'   => $question->id,
-                            'answer_text'   => mb_substr($text, 0, 500),
-                            'is_correct'    => $result['marks'] >= $question->marks,
-                            'marks_awarded' => $result['marks'],
-                            'ai_feedback'   => $result['feedback'],
-                            'ai_evaluated'  => true,
-                        ]);
+                        $text = strip_tags(trim($answerData['text'] ?? ''));
+
+                        if (($question->fill_blank_grading ?? 'exact') === 'exact') {
+                            // Split by | for multiple blanks, compare case-insensitively
+                            $correctParts = array_map('trim', explode('|', $question->correct_answer_text ?? ''));
+                            $studentParts = array_map('trim', explode('|', $text));
+                            $total        = count($correctParts);
+                            $matched      = 0;
+                            foreach ($correctParts as $i => $correct) {
+                                $given = strtolower($studentParts[$i] ?? '');
+                                if ($given !== '' && $given === strtolower($correct)) {
+                                    $matched++;
+                                }
+                            }
+                            $marksAwarded = $total > 0 ? round(($matched / $total) * $question->marks, 2) : 0;
+                            $isCorrect    = $total > 0 && $matched === $total;
+                            $totalScore  += $marksAwarded;
+                            StudentAnswer::create([
+                                'attempt_id'    => $attempt->id,
+                                'question_id'   => $question->id,
+                                'answer_text'   => mb_substr($text, 0, 500),
+                                'is_correct'    => $isCorrect,
+                                'marks_awarded' => $marksAwarded,
+                                'ai_feedback'   => null,
+                                'ai_evaluated'  => false,
+                            ]);
+                        } else {
+                            // AI path
+                            $result = $gemini->evaluate($text, $question->correct_answer_text ?? '', $question->marks, $question->question_text);
+                            $totalScore += $result['marks'];
+                            StudentAnswer::create([
+                                'attempt_id'    => $attempt->id,
+                                'question_id'   => $question->id,
+                                'answer_text'   => mb_substr($text, 0, 500),
+                                'is_correct'    => $result['marks'] >= $question->marks,
+                                'marks_awarded' => $result['marks'],
+                                'ai_feedback'   => $result['feedback'],
+                                'ai_evaluated'  => true,
+                            ]);
+                        }
                     })(),
 
                     'ai_evaluated' => (function () use ($question, $answerData, $attempt, $gemini, &$totalScore) {

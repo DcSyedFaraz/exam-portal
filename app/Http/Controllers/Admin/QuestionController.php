@@ -110,6 +110,7 @@ class QuestionController extends Controller
             'fill_blank' => $rules += [
                 'question_text'       => 'required|string|max:1000',
                 'correct_answer_text' => 'required|string|max:500',
+                'fill_blank_grading'  => 'nullable|in:ai,exact',
             ],
             'word_bank' => $rules += [
                 'question_text'   => 'required|string|max:1000',
@@ -148,6 +149,7 @@ class QuestionController extends Controller
                 'correct_answer_text' => $request->correct_answer_text,
                 'word_bank_items'     => $wordBankItems,
                 'ai_max_marks'        => $type === 'ai_evaluated' ? $request->marks : null,
+                'fill_blank_grading'  => $type === 'fill_blank' ? ($request->fill_blank_grading ?? 'exact') : null,
             ]);
 
             if ($type === 'picture') {
@@ -248,6 +250,7 @@ class QuestionController extends Controller
             'fill_blank' => $rules += [
                 'question_text'       => 'required|string|max:1000',
                 'correct_answer_text' => 'required|string|max:500',
+                'fill_blank_grading'  => 'nullable|in:ai,exact',
             ],
             'word_bank' => $rules += [
                 'question_text'   => 'required|string|max:1000',
@@ -278,6 +281,10 @@ class QuestionController extends Controller
 
             if (in_array($type, ['fill_blank', 'ai_evaluated'])) {
                 $updates['correct_answer_text'] = $request->correct_answer_text;
+            }
+
+            if ($type === 'fill_blank') {
+                $updates['fill_blank_grading'] = $request->fill_blank_grading ?? 'exact';
             }
 
             if ($type === 'word_bank') {

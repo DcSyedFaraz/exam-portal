@@ -7,7 +7,13 @@
                     {{ strtoupper(str_replace('_', ' ', $question->question_type)) }}
                 </span>
                 <span class="text-xs text-gray-400">{{ $question->marks }} mark(s)</span>
-                @if($question->isAiGraded())
+                @if($question->question_type === 'fill_blank')
+                    @if(($question->fill_blank_grading ?? 'exact') === 'exact')
+                        <span class="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">Exact match</span>
+                    @else
+                        <span class="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">AI graded</span>
+                    @endif
+                @elseif($question->isAiGraded())
                     <span class="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">AI graded</span>
                 @endif
             </div>
