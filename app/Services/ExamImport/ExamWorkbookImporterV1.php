@@ -52,13 +52,15 @@ final class ExamWorkbookImporterV1
             return;
         }
 
-        $readMe = $spreadsheet->getSheetByName('Read me');
-        $examSheet = $spreadsheet->getSheetByName('Exam details');
-        $questionsSheet = $spreadsheet->getSheetByName('Questions');
-        $matchingSheet = $spreadsheet->getSheetByName('Matching pairs');
+        $readMe          = $spreadsheet->getSheetByName('Read me');
+        $examSheet       = $spreadsheet->getSheetByName('Exam details');
+        $questionsSheet  = $spreadsheet->getSheetByName('Questions');
+        $matchingSheet   = $spreadsheet->getSheetByName('Matching pairs');
+        $wordBankSheet   = $spreadsheet->getSheetByName('Word Bank items');
+        $pictureSheet    = $spreadsheet->getSheetByName('Picture sub-questions');
 
         if (! $readMe || ! $examSheet || ! $questionsSheet) {
-            $this->addError('Workbook', '-', '-', 'Missing a required sheet. You need: Read me, Exam details, and Questions. Matching pairs is optional.');
+            $this->addError('Workbook', '-', '-', 'Missing a required sheet. You need: Read me, Exam details, and Questions. The other sheets are optional.');
             $this->finishBatch($batch, []);
 
             return;
@@ -78,9 +80,11 @@ final class ExamWorkbookImporterV1
             return;
         }
 
-        $examRows = $this->readDataRows($examSheet);
+        $examRows     = $this->readDataRows($examSheet);
         $questionRows = $this->readDataRows($questionsSheet);
-        $matchRows = $matchingSheet ? $this->readDataRows($matchingSheet) : [];
+        $matchRows    = $matchingSheet  ? $this->readDataRows($matchingSheet)  : [];
+        $wbRows       = $wordBankSheet  ? $this->readDataRows($wordBankSheet)  : [];
+        $picRows      = $pictureSheet   ? $this->readDataRows($pictureSheet)   : [];
 
         $examRowsWithTitle = array_values(array_filter($examRows, function (array $r) {
             $t = trim((string) ($r['data']['exam_title'] ?? ''));
@@ -126,22 +130,60 @@ final class ExamWorkbookImporterV1
             return;
         }
 
+        // ── Matching pairs map ────────────────────────────────────────────
         $pairsMap = [];
         foreach ($matchRows as ['row_number' => $rowNum, 'data' => $row]) {
-            $qn = (int) ($row['question_number'] ?? 0);
-            $left = trim((string) ($row['left_item'] ?? ''));
+            $qn    = (int) ($row['question_number'] ?? 0);
+            $left  = trim((string) ($row['left_item'] ?? ''));
             $right = trim((string) ($row['right_item'] ?? ''));
             if ($qn < 1) {
                 $this->addError('Matching pairs', $rowNum, 'Matching', 'Question number must be a whole number 1, 2, 3…');
-
                 continue;
             }
             if ($left === '' || $right === '') {
                 $this->addError('Matching pairs', $rowNum, 'Q'.$qn, 'Left item and Right item cannot be empty.');
-
                 continue;
             }
             $pairsMap[$qn][] = [$left, $right, $rowNum];
+        }
+
+        // ── Word Bank items map ───────────────────────────────────────────
+        // Columns: question_number, sentence_(with_____for_the_blank), correct_word
+        $wbMap = [];
+        foreach ($wbRows as ['row_number' => $rowNum, 'data' => $row]) {
+            $qn       = (int) ($row['question_number'] ?? 0);
+            // normalised header can differ; try both key forms
+            $sentence = trim((string) ($row['sentence_(with_____for_the_blank)'] ?? $row['sentence'] ?? ''));
+            $word     = trim((string) ($row['correct_word'] ?? ''));
+            if ($qn < 1) {
+                $this->addError('Word Bank items', $rowNum, 'Word Bank', 'Question number must be a whole number 1, 2, 3…');
+                continue;
+            }
+            if ($sentence === '' || $word === '') {
+                $this->addError('Word Bank items', $rowNum, 'Q'.$qn, 'Sentence and Correct word cannot be empty.');
+                continue;
+            }
+            $wbMap[$qn][] = [$sentence, $word];
+        }
+
+        // ── Picture sub-questions map ─────────────────────────────────────
+        // Columns: question_number, label_(a,_b,_c…), sub-question_text, correct_answer, marks
+        $picMap = [];
+        foreach ($picRows as ['row_number' => $rowNum, 'data' => $row]) {
+            $qn     = (int) ($row['question_number'] ?? 0);
+            $label  = strtolower(trim((string) ($row['label_(a,_b,_c…)'] ?? $row['label'] ?? '')));
+            $subQ   = trim((string) ($row['sub-question_text'] ?? $row['sub_question_text'] ?? ''));
+            $ans    = trim((string) ($row['correct_answer'] ?? ''));
+            $marks  = max(1, (int) ($row['marks'] ?? 1));
+            if ($qn < 1) {
+                $this->addError('Picture sub-questions', $rowNum, 'Picture', 'Question number must be a whole number 1, 2, 3…');
+                continue;
+            }
+            if ($subQ === '') {
+                $this->addError('Picture sub-questions', $rowNum, 'Q'.$qn, 'Sub-question text cannot be empty.');
+                continue;
+            }
+            $picMap[$qn][] = ['label' => $label ?: chr(97 + count($picMap[$qn] ?? [])), 'question' => $subQ, 'answer' => $ans, 'marks' => $marks];
         }
 
         if ($this->errors !== []) {
@@ -183,7 +225,7 @@ final class ExamWorkbookImporterV1
         }
 
         foreach ($qList as $q) {
-            $this->errors = array_merge($this->errors, $this->validateQuestionRowFriendly($q['row_number'], $q['data'], $q['kind'], $q['order'], $pairsMap));
+            $this->errors = array_merge($this->errors, $this->validateQuestionRowFriendly($q['row_number'], $q['data'], $q['kind'], $q['order'], $pairsMap, $wbMap, $picMap));
         }
 
         $totalMarks = (int) ($examData['total_marks'] ?? 0);
@@ -204,7 +246,7 @@ final class ExamWorkbookImporterV1
         $createdExamIds = [];
 
         try {
-            DB::transaction(function () use ($examData, $qList, $pairsMap, $userId, &$createdExamIds) {
+            DB::transaction(function () use ($examData, $qList, $pairsMap, $wbMap, $picMap, $userId, &$createdExamIds) {
                 $exam = Exam::create([
                     'title' => trim((string) $examData['exam_title']),
                     'description' => $this->nullableString($examData['description'] ?? null),
@@ -262,39 +304,33 @@ final class ExamWorkbookImporterV1
                                                         ? strip_tags(trim((string) ($row['correct_answer'] ?? '')))
                                                         : null,
                             'word_bank_items'     => $wordBankItems,
+                            'fill_blank_grading'  => $type === 'fill_blank' ? 'exact' : null,
                             'ai_max_marks'        => $type === 'ai_evaluated'
                                                         ? (int) ($row['marks_for_this_question'] ?? 1)
                                                         : null,
                         ]);
 
-                        // Picture: create sub-items from columns sub_q_a, sub_ans_a, sub_marks_a ...
+                        // Picture: sub-items from "Picture sub-questions" sheet
                         if ($type === 'picture') {
-                            foreach (['a', 'b', 'c', 'd', 'e', 'f'] as $label) {
-                                $subQ = trim((string) ($row["sub_q_{$label}"] ?? ''));
-                                if ($subQ !== '') {
-                                    $question->subItems()->create([
-                                        'label'             => $label,
-                                        'sub_question_text' => strip_tags($subQ),
-                                        'correct_answer'    => strip_tags(trim((string) ($row["sub_ans_{$label}"] ?? ''))),
-                                        'marks'             => (int) ($row["sub_marks_{$label}"] ?? 1),
-                                        'order'             => ord($label) - 97,
-                                    ]);
-                                }
+                            foreach ($picMap[$order] ?? [] as $i => $sub) {
+                                $question->subItems()->create([
+                                    'label'             => $sub['label'],
+                                    'sub_question_text' => strip_tags($sub['question']),
+                                    'correct_answer'    => strip_tags($sub['answer']),
+                                    'marks'             => $sub['marks'],
+                                    'order'             => $i,
+                                ]);
                             }
                         }
 
-                        // Word bank: options from option_a = "statement|correct_word"
+                        // Word Bank: sentence→word pairs from "Word Bank items" sheet
                         if ($type === 'word_bank') {
-                            foreach (['a', 'b', 'c', 'd', 'e', 'f', 'g'] as $label) {
-                                $opt = trim((string) ($row["option_{$label}"] ?? ''));
-                                if ($opt !== '') {
-                                    [$statement, $correctWord] = array_pad(explode('|', $opt, 2), 2, '');
-                                    $question->options()->create([
-                                        'option_text' => trim($statement),
-                                        'match_pair'  => trim($correctWord),
-                                        'is_correct'  => true,
-                                    ]);
-                                }
+                            foreach ($wbMap[$order] ?? [] as [$statement, $correctWord]) {
+                                $question->options()->create([
+                                    'option_text' => $statement,
+                                    'match_pair'  => $correctWord,
+                                    'is_correct'  => true,
+                                ]);
                             }
                         }
                     }
@@ -354,11 +390,7 @@ final class ExamWorkbookImporterV1
         return $errs;
     }
 
-    /**
-     * @param  array<int, list<array{0: string, 1: string, 2: int}>>  $pairsMap
-     * @return array<int, array{sheet: string, row: int|string, reference: string, message: string}>
-     */
-    private function validateQuestionRowFriendly(int $rowNum, array $row, string $kind, int $order, array $pairsMap): array
+    private function validateQuestionRowFriendly(int $rowNum, array $row, string $kind, int $order, array $pairsMap, array $wbMap = [], array $picMap = []): array
     {
         $errs = [];
         $ref = 'Q'.$order;
@@ -392,22 +424,36 @@ final class ExamWorkbookImporterV1
         }
 
         if ($kind === 'match') {
-            $pairs = $pairsMap[$order] ?? [];
-            if (count($pairs) < 2) {
-                $errs[] = ['Questions', $rowNum, $ref, 'Matching questions need at least two rows on the "Matching pairs" sheet with this same question number.'];
+            if (count($pairsMap[$order] ?? []) < 2) {
+                $errs[] = ['Questions', $rowNum, $ref, 'Matching questions need at least 2 rows on the "Matching pairs" sheet with this question number.'];
             }
         }
 
-        if ($kind === 'fill_blank' || $kind === 'ai_evaluated') {
+        if ($kind === 'fill_blank') {
             $ca = trim((string) ($row['correct_answer'] ?? ''));
             if ($ca === '') {
-                $errs[] = ['Questions', $rowNum, $ref, 'Fill-in-blank and open-ended questions need a model answer in the "Correct answer" column.'];
+                $errs[] = ['Questions', $rowNum, $ref, 'Fill in blank questions need the correct answer(s) in the "Correct answer" column. Use | to separate multiple blanks e.g. east|west'];
+            }
+        }
+
+        if ($kind === 'ai_evaluated') {
+            if (trim((string) ($row['correct_answer'] ?? '')) === '') {
+                $errs[] = ['Questions', $rowNum, $ref, 'Open ended questions need a model answer in the "Correct answer" column.'];
             }
         }
 
         if ($kind === 'word_bank') {
             if (empty(trim((string) ($row['word_bank_items'] ?? '')))) {
-                $errs[] = ['Questions', $rowNum, $ref, 'Word bank questions need items in the "word_bank_items" column (comma-separated).'];
+                $errs[] = ['Questions', $rowNum, $ref, 'Word Bank questions need comma-separated words in the "word_bank_items" column.'];
+            }
+            if (empty($wbMap[$order] ?? [])) {
+                $errs[] = ['Questions', $rowNum, $ref, 'Word Bank questions need at least one row on the "Word Bank items" sheet with this question number.'];
+            }
+        }
+
+        if ($kind === 'picture') {
+            if (empty($picMap[$order] ?? [])) {
+                $errs[] = ['Questions', $rowNum, $ref, 'Picture questions need at least one row on the "Picture sub-questions" sheet with this question number.'];
             }
         }
 

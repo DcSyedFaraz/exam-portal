@@ -37,7 +37,19 @@ class QuestionController extends Controller
         return view('admin.exams.questions', compact('exam', 'questions'));
     }
 
-    public function store(Request $request, Exam $exam): JsonResponse
+    public function create(Exam $exam): View
+    {
+        return view('admin.exams.question-form', compact('exam'));
+    }
+
+    public function edit(Question $question): View
+    {
+        $question->load('options', 'subItems');
+        $exam = $question->exam;
+        return view('admin.exams.question-form', compact('exam', 'question'));
+    }
+
+    public function store(Request $request, Exam $exam): \Illuminate\Http\RedirectResponse|JsonResponse
     {
         $type = $request->input('question_type');
 
@@ -48,7 +60,16 @@ class QuestionController extends Controller
         return $this->storeNewType($request, $exam, $type);
     }
 
-    private function storeLegacy(Request $request, Exam $exam): JsonResponse
+    public function update(Request $request, Question $question): \Illuminate\Http\RedirectResponse|JsonResponse
+    {
+        if (in_array($question->question_type, self::LEGACY_TYPES, true)) {
+            return $this->updateLegacy($request, $question);
+        }
+
+        return $this->updateNewType($request, $question);
+    }
+
+    private function storeLegacy(Request $request, Exam $exam): \Illuminate\Http\RedirectResponse
     {
         $request->validate([
             'question_text' => 'required|string',
@@ -57,9 +78,14 @@ class QuestionController extends Controller
             'options'       => 'required|array|min:2',
             'options.*.text'       => 'required|string',
             'options.*.is_correct' => 'required',
+        ], [], [
+            'question_text'        => 'question text',
+            'question_type'        => 'question type',
+            'marks'                => 'marks',
+            'options'              => 'options',
+            'options.*.text'       => 'option text',
+            'options.*.is_correct' => 'correct answer selection',
         ]);
-
-        $this->validateExactlyOneCorrect((string) $request->question_type, $request->input('options', []));
 
         DB::transaction(function () use ($request, $exam, &$question) {
             $order = $exam->questions()->max('order') + 1;
@@ -82,16 +108,11 @@ class QuestionController extends Controller
             }
         });
 
-        $question->load('options', 'subItems');
-
-        return response()->json([
-            'success'  => true,
-            'question' => $question,
-            'html'     => view('admin.exams.partials.question-row', compact('question'))->render(),
-        ]);
+        return redirect()->route('admin.exams.questions', $exam)
+            ->with('success', 'Question added successfully.');
     }
 
-    private function storeNewType(Request $request, Exam $exam, string $type): JsonResponse
+    private function storeNewType(Request $request, Exam $exam, string $type): \Illuminate\Http\RedirectResponse
     {
         $rules = [
             'question_type' => 'required|in:picture,fill_blank,word_bank,ai_evaluated',
@@ -100,31 +121,47 @@ class QuestionController extends Controller
 
         match ($type) {
             'picture' => $rules += [
-                'image'                    => 'required|image|max:2048',
-                'sub_questions'            => 'required|array|min:1',
-                'sub_questions.*'          => 'required|string|max:500',
-                'sub_correct_answers'      => 'required|array|min:1',
-                'sub_correct_answers.*'    => 'required|string|max:500',
-                'sub_marks.*'              => 'required|integer|min:1',
+                'image'                 => 'required|image|max:2048',
+                'sub_questions'         => 'required|array|min:1',
+                'sub_questions.*'       => 'required|string|max:500',
+                'sub_correct_answers'   => 'required|array|min:1',
+                'sub_correct_answers.*' => 'required|string|max:500',
+                'sub_marks.*'           => 'required|integer|min:1',
             ],
             'fill_blank' => $rules += [
-                'question_text'       => 'required|string|max:1000',
-                'correct_answer_text' => 'required|string|max:500',
-                'fill_blank_grading'  => 'nullable|in:ai,exact',
+                'fb_question_text' => 'required|string|max:1000',
+                'fb_answers'       => 'required|array|min:1',
+                'fb_answers.*'     => 'required|string|max:500',
             ],
             'word_bank' => $rules += [
-                'question_text'   => 'required|string|max:1000',
-                'word_bank_items' => 'required|string|max:500',
-                'options'         => 'required|array|min:1',
+                'wb_question_text' => 'required|string|max:1000',
+                'word_bank_items'  => 'required|string|max:500',
+                'options'          => 'required|array|min:1',
             ],
             'ai_evaluated' => $rules += [
-                'question_text'       => 'required|string|max:1000',
-                'correct_answer_text' => 'required|string|max:1000',
+                'question_text'    => 'required|string|max:1000',
+                'ai_correct_answer'=> 'required|string|max:1000',
             ],
             default => null,
         };
 
-        $request->validate($rules);
+        $request->validate($rules, [], [
+            'question_type'         => 'question type',
+            'marks'                 => 'marks',
+            'image'                 => 'image',
+            'sub_questions'         => 'sub-questions',
+            'sub_questions.*'       => 'sub-question text',
+            'sub_correct_answers'   => 'sub-question answers',
+            'sub_correct_answers.*' => 'correct answer',
+            'sub_marks.*'           => 'marks per sub-question',
+            'fb_question_text'      => 'question text',
+            'fb_answers'            => 'correct answers',
+            'fb_answers.*'          => 'answer',
+            'wb_question_text'      => 'question text',
+            'word_bank_items'       => 'word bank items',
+            'options'               => 'question items',
+            'ai_correct_answer'     => 'model answer',
+        ]);
 
         $imagePath = null;
         if ($type === 'picture' && $request->hasFile('image')) {
@@ -136,21 +173,39 @@ class QuestionController extends Controller
             $wordBankItems = array_map('trim', explode(',', $request->word_bank_items));
         }
 
-        DB::transaction(function () use ($request, $exam, $type, $imagePath, $wordBankItems, &$question) {
+        // Resolve question_text and correct_answer_text from type-specific field names
+        $questionText = match($type) {
+            'fill_blank'   => $request->fb_question_text,
+            'word_bank'    => $request->wb_question_text,
+            'picture'      => $request->input('pic_question_text', ''),
+            default        => $request->input('question_text', ''),
+        };
+        $correctAnswerText = match($type) {
+            'fill_blank'   => implode('|', array_map('trim', $request->input('fb_answers', []))),
+            'ai_evaluated' => $request->ai_correct_answer,
+            default        => null,
+        };
+
+        DB::transaction(function () use ($request, $exam, $type, $imagePath, $wordBankItems, $questionText, $correctAnswerText, &$question) {
             $order = $exam->questions()->max('order') + 1;
 
-            $question = Question::create([
+            $attrs = [
                 'exam_id'             => $exam->id,
-                'question_text'       => $request->input('question_text', ''),
+                'question_text'       => $questionText,
                 'question_type'       => $type,
                 'marks'               => $request->marks,
                 'order'               => $order,
                 'image_path'          => $imagePath,
-                'correct_answer_text' => $request->correct_answer_text,
+                'correct_answer_text' => $correctAnswerText,
                 'word_bank_items'     => $wordBankItems,
                 'ai_max_marks'        => $type === 'ai_evaluated' ? $request->marks : null,
-                'fill_blank_grading'  => $type === 'fill_blank' ? ($request->fill_blank_grading ?? 'exact') : null,
-            ]);
+            ];
+
+            if ($type === 'fill_blank') {
+                $attrs['fill_blank_grading'] = 'exact';
+            }
+
+            $question = Question::create($attrs);
 
             if ($type === 'picture') {
                 foreach ($request->sub_questions as $i => $subQ) {
@@ -166,34 +221,21 @@ class QuestionController extends Controller
 
             if ($type === 'word_bank') {
                 foreach ($request->options as $opt) {
+                    if (!isset($opt['statement'])) continue;
                     $question->options()->create([
                         'option_text' => $opt['statement'],
-                        'match_pair'  => $opt['correct_word'],
+                        'match_pair'  => $opt['correct_word'] ?? '',
                         'is_correct'  => true,
                     ]);
                 }
             }
         });
 
-        $question->load('options', 'subItems');
-
-        return response()->json([
-            'success'  => true,
-            'question' => $question,
-            'html'     => view('admin.exams.partials.question-row', compact('question'))->render(),
-        ]);
+        return redirect()->route('admin.exams.questions', $exam)
+            ->with('success', 'Question added successfully.');
     }
 
-    public function update(Request $request, Question $question): JsonResponse
-    {
-        if (in_array($question->question_type, self::LEGACY_TYPES, true)) {
-            return $this->updateLegacy($request, $question);
-        }
-
-        return $this->updateNewType($request, $question);
-    }
-
-    private function updateLegacy(Request $request, Question $question): JsonResponse
+    private function updateLegacy(Request $request, Question $question): \Illuminate\Http\RedirectResponse
     {
         $request->validate([
             'question_text' => 'required|string',
@@ -201,9 +243,13 @@ class QuestionController extends Controller
             'options'       => 'required|array|min:2',
             'options.*.text'       => 'required|string',
             'options.*.is_correct' => 'required',
+        ], [], [
+            'question_text'        => 'question text',
+            'marks'                => 'marks',
+            'options'              => 'options',
+            'options.*.text'       => 'option text',
+            'options.*.is_correct' => 'correct answer selection',
         ]);
-
-        $this->validateExactlyOneCorrect((string) $question->question_type, $request->input('options', []));
 
         DB::transaction(function () use ($request, $question) {
             $question->update([
@@ -223,16 +269,11 @@ class QuestionController extends Controller
             }
         });
 
-        $question->load('options', 'subItems');
-
-        return response()->json([
-            'success'  => true,
-            'question' => $question,
-            'html'     => view('admin.exams.partials.question-row', compact('question'))->render(),
-        ]);
+        return redirect()->route('admin.exams.questions', $question->exam_id)
+            ->with('success', 'Question updated successfully.');
     }
 
-    private function updateNewType(Request $request, Question $question): JsonResponse
+    private function updateNewType(Request $request, Question $question): \Illuminate\Http\RedirectResponse
     {
         $type = $question->question_type;
 
@@ -240,36 +281,56 @@ class QuestionController extends Controller
 
         match ($type) {
             'picture' => $rules += [
-                'image'               => 'nullable|image|max:2048',
-                'sub_questions'       => 'required|array|min:1',
-                'sub_questions.*'     => 'required|string|max:500',
-                'sub_correct_answers' => 'required|array|min:1',
+                'image'                 => 'nullable|image|max:2048',
+                'sub_questions'         => 'required|array|min:1',
+                'sub_questions.*'       => 'required|string|max:500',
+                'sub_correct_answers'   => 'required|array|min:1',
                 'sub_correct_answers.*' => 'required|string|max:500',
-                'sub_marks.*'         => 'required|integer|min:1',
+                'sub_marks.*'           => 'required|integer|min:1',
             ],
             'fill_blank' => $rules += [
-                'question_text'       => 'required|string|max:1000',
-                'correct_answer_text' => 'required|string|max:500',
-                'fill_blank_grading'  => 'nullable|in:ai,exact',
+                'fb_question_text' => 'required|string|max:1000',
+                'fb_answers'       => 'required|array|min:1',
+                'fb_answers.*'     => 'required|string|max:500',
             ],
             'word_bank' => $rules += [
-                'question_text'   => 'required|string|max:1000',
-                'word_bank_items' => 'required|string|max:500',
-                'options'         => 'required|array|min:1',
+                'wb_question_text' => 'required|string|max:1000',
+                'word_bank_items'  => 'required|string|max:500',
+                'options'          => 'required|array|min:1',
             ],
             'ai_evaluated' => $rules += [
-                'question_text'       => 'required|string|max:1000',
-                'correct_answer_text' => 'required|string|max:1000',
+                'question_text'     => 'required|string|max:1000',
+                'ai_correct_answer' => 'required|string|max:1000',
             ],
             default => null,
         };
 
-        $request->validate($rules);
+        $request->validate($rules, [], [
+            'marks'                 => 'marks',
+            'image'                 => 'image',
+            'sub_questions'         => 'sub-questions',
+            'sub_questions.*'       => 'sub-question text',
+            'sub_correct_answers'   => 'sub-question answers',
+            'sub_correct_answers.*' => 'correct answer',
+            'sub_marks.*'           => 'marks per sub-question',
+            'fb_question_text'      => 'question text',
+            'fb_answers'            => 'correct answers',
+            'fb_answers.*'          => 'answer',
+            'wb_question_text'      => 'question text',
+            'word_bank_items'       => 'word bank items',
+            'options'               => 'question items',
+            'ai_correct_answer'     => 'model answer',
+        ]);
 
         DB::transaction(function () use ($request, $question, $type) {
             $updates = [
-                'question_text' => $request->input('question_text', $question->question_text),
-                'marks'         => $request->marks,
+                'question_text' => match($type) {
+                    'fill_blank'   => $request->fb_question_text,
+                    'word_bank'    => $request->wb_question_text,
+                    'picture'      => $request->input('pic_question_text', $question->question_text),
+                    default        => $request->input('question_text', $question->question_text),
+                },
+                'marks' => $request->marks,
             ];
 
             if ($type === 'picture' && $request->hasFile('image')) {
@@ -279,12 +340,13 @@ class QuestionController extends Controller
                 $updates['image_path'] = $request->file('image')->store('question-images', 'public');
             }
 
-            if (in_array($type, ['fill_blank', 'ai_evaluated'])) {
-                $updates['correct_answer_text'] = $request->correct_answer_text;
+            if ($type === 'fill_blank') {
+                $updates['correct_answer_text'] = implode('|', array_map('trim', $request->input('fb_answers', [])));
+                $updates['fill_blank_grading']  = 'exact';
             }
 
-            if ($type === 'fill_blank') {
-                $updates['fill_blank_grading'] = $request->fill_blank_grading ?? 'exact';
+            if ($type === 'ai_evaluated') {
+                $updates['correct_answer_text'] = $request->ai_correct_answer;
             }
 
             if ($type === 'word_bank') {
@@ -313,22 +375,18 @@ class QuestionController extends Controller
             if ($type === 'word_bank') {
                 $question->options()->delete();
                 foreach ($request->options as $opt) {
+                    if (!isset($opt['statement'])) continue;
                     $question->options()->create([
                         'option_text' => $opt['statement'],
-                        'match_pair'  => $opt['correct_word'],
+                        'match_pair'  => $opt['correct_word'] ?? '',
                         'is_correct'  => true,
                     ]);
                 }
             }
         });
 
-        $question->load('options', 'subItems');
-
-        return response()->json([
-            'success'  => true,
-            'question' => $question,
-            'html'     => view('admin.exams.partials.question-row', compact('question'))->render(),
-        ]);
+        return redirect()->route('admin.exams.questions', $question->exam_id)
+            ->with('success', 'Question updated successfully.');
     }
 
     public function destroy(Question $question): JsonResponse

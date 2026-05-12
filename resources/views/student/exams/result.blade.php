@@ -114,7 +114,38 @@
                                 @endforeach
                             </div>
 
-                        @elseif(in_array($question->question_type, ['fill_blank', 'ai_evaluated']))
+                        @elseif($question->question_type === 'fill_blank')
+                            @php
+                                $fbParts      = preg_split('/(_{4,})/', $question->question_text, -1, PREG_SPLIT_DELIM_CAPTURE);
+                                $studentParts = array_map('trim', explode('|', $answer->answer_text ?? ''));
+                                $correctParts = array_map('trim', explode('|', $question->correct_answer_text ?? ''));
+                                $fbBlankIdx   = 0;
+                            @endphp
+                            <div class="text-sm leading-loose flex flex-wrap items-center gap-x-1 gap-y-2 mt-1">
+                                @foreach($fbParts as $fbPart)
+                                    @if(preg_match('/^_{4,}$/', $fbPart))
+                                        @php
+                                            $given   = $studentParts[$fbBlankIdx] ?? '';
+                                            $correct = $correctParts[$fbBlankIdx] ?? '';
+                                            $ok      = strtolower($given) === strtolower($correct) && $given !== '';
+                                            $fbBlankIdx++;
+                                        @endphp
+                                        <span class="inline-flex flex-col items-center gap-0.5">
+                                            <span class="px-3 py-0.5 rounded-lg text-sm font-semibold border-b-2
+                                                {{ $ok ? 'bg-green-100 border-green-400 text-green-800' : 'bg-red-100 border-red-400 text-red-700' }}">
+                                                {{ $given ?: '—' }}
+                                            </span>
+                                            @if(!$ok)
+                                            <span class="text-[10px] text-green-700 font-medium">✓ {{ $correct }}</span>
+                                            @endif
+                                        </span>
+                                    @else
+                                        <span>{{ $fbPart }}</span>
+                                    @endif
+                                @endforeach
+                            </div>
+
+                        @elseif($question->question_type === 'ai_evaluated')
                             <p class="text-sm {{ $answer->is_correct ? 'text-green-700' : 'text-red-600' }}">
                                 Your answer: <strong>{{ $answer->answer_text ?? 'Not answered' }}</strong>
                             </p>
@@ -124,13 +155,22 @@
 
                         @elseif($question->question_type === 'word_bank')
                             @php $wb = json_decode($answer->answer_text ?? '{}', true) ?? [] @endphp
-                            <div class="space-y-1 text-sm">
+                            <div class="space-y-2 text-sm">
                                 @foreach($question->options as $opt)
-                                @php $chosen = $wb[$opt->id] ?? null; $wbOk = $chosen && strtolower(trim($chosen)) === strtolower(trim($opt->match_pair)); @endphp
-                                <div class="flex items-center gap-2">
-                                    <span class="{{ $wbOk ? 'text-green-600' : 'text-red-500' }}">{{ $wbOk ? '✅' : '❌' }}</span>
-                                    <span class="text-gray-700">{{ $opt->option_text }}:</span>
-                                    <strong class="{{ $wbOk ? 'text-green-700' : 'text-red-600' }}">{{ $chosen ?? '—' }}</strong>
+                                @php
+                                    $chosen = $wb[$opt->id] ?? null;
+                                    $wbOk   = $chosen && strtolower(trim($chosen)) === strtolower(trim($opt->match_pair));
+                                @endphp
+                                <div class="flex items-center gap-2 rounded-lg px-3 py-2 {{ $wbOk ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200' }}">
+                                    <span class="shrink-0">{{ $wbOk ? '✅' : '❌' }}</span>
+                                    <span class="text-gray-700 flex-1 min-w-0">{{ $opt->option_text }}</span>
+                                    <span class="font-semibold {{ $wbOk ? 'text-green-700' : 'text-red-600' }} shrink-0">
+                                        {{ $chosen ?? '—' }}
+                                    </span>
+                                    @if(!$wbOk)
+                                    <span class="text-gray-400 shrink-0">→</span>
+                                    <span class="font-semibold text-green-700 shrink-0">{{ $opt->match_pair }}</span>
+                                    @endif
                                 </div>
                                 @endforeach
                             </div>
@@ -143,11 +183,15 @@
                             <div class="space-y-2">
                                 @foreach($question->subItems as $sub)
                                 @php $subAnswer = $subAnswers[$sub->id] ?? null @endphp
+                                @php $subCorrect = ($subAnswer?->marks_awarded ?? 0) > 0; @endphp
                                 <div class="rounded-lg p-2 bg-white border border-gray-100 text-xs">
                                     <p class="font-medium text-gray-700">({{ $sub->label }}) {{ $sub->sub_question_text }}</p>
-                                    <p class="text-gray-600 mt-0.5">Your answer: <strong>{{ $subAnswer?->answer_text ?? '—' }}</strong></p>
-                                    @if($subAnswer?->ai_feedback)
-                                    <p class="text-gray-400 italic mt-0.5">{{ $subAnswer->ai_feedback }}</p>
+                                    <p class="mt-0.5 {{ $subCorrect ? 'text-green-700' : 'text-red-600' }}">
+                                        {{ $subCorrect ? '✅' : '❌' }}
+                                        Your answer: <strong>{{ $subAnswer?->answer_text ?? '—' }}</strong>
+                                    </p>
+                                    @if(!$subCorrect)
+                                    <p class="text-green-700 mt-0.5">Correct answer: <strong>{{ $sub->correct_answer }}</strong></p>
                                     @endif
                                     <p class="text-gray-500 mt-0.5">{{ $subAnswer?->marks_awarded ?? 0 }}/{{ $sub->marks }} mark(s)</p>
                                 </div>

@@ -42,7 +42,7 @@ Rules:
 PROMPT;
 
         try {
-            $response = Gemini::geminiFlash()->generateContent($prompt);
+            $response = Gemini::generativeModel(config('gemini.model', 'gemini-2.0-flash'))->generateContent($prompt);
             $text = trim($response->text());
 
             $text = preg_replace('/```json|```/', '', $text);

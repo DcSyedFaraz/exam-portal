@@ -35,10 +35,12 @@ Route::prefix('admin')
             ->name('exams.toggle-publish');
 
         // Questions
-        Route::get('exams/{exam}/questions', [Admin\QuestionController::class, 'index'])->name('exams.questions');
-        Route::post('exams/{exam}/questions', [Admin\QuestionController::class, 'store'])->name('exams.questions.store');
-        Route::put('questions/{question}', [Admin\QuestionController::class, 'update'])->name('questions.update');
-        Route::delete('questions/{question}', [Admin\QuestionController::class, 'destroy'])->name('questions.destroy');
+        Route::get('exams/{exam}/questions',        [Admin\QuestionController::class, 'index'])->name('exams.questions');
+        Route::get('exams/{exam}/questions/create', [Admin\QuestionController::class, 'create'])->name('exams.questions.create');
+        Route::post('exams/{exam}/questions',       [Admin\QuestionController::class, 'store'])->name('exams.questions.store');
+        Route::get('questions/{question}/edit',     [Admin\QuestionController::class, 'edit'])->name('questions.edit');
+        Route::put('questions/{question}',          [Admin\QuestionController::class, 'update'])->name('questions.update');
+        Route::delete('questions/{question}',       [Admin\QuestionController::class, 'destroy'])->name('questions.destroy');
 
         // Bulk exam import (Excel)
         Route::get('exams/bulk-import', [Admin\ExamBulkImportController::class, 'index'])->name('exams.bulk-import');

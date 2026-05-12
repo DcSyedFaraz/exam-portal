@@ -170,36 +170,67 @@
 
                             {{-- Fill in the Blank --}}
                             @elseif($question->question_type === 'fill_blank')
-                                <input
-                                    type="text"
-                                    name="answers[{{ $question->id }}][text]"
-                                    maxlength="500"
-                                    class="form-input"
-                                    placeholder="Type your answer here..."
-                                    autocomplete="off"
-                                    onchange="onAnswerChange({{ $question->id }})">
+                            @php
+                                // Split sentence on blanks — odd indices are blanks
+                                $fbParts = preg_split('/(_{4,})/', $question->question_text, -1, PREG_SPLIT_DELIM_CAPTURE);
+                                $fbBlankIndex = 0;
+                            @endphp
+                                <div class="text-base leading-loose text-gray-900 flex flex-wrap items-center gap-x-1 gap-y-2">
+                                    @foreach($fbParts as $fbPart)
+                                        @if(preg_match('/^_{4,}$/', $fbPart))
+                                            {{-- Inline input for this blank --}}
+                                            <input type="text"
+                                                   name="answers[{{ $question->id }}][fb][{{ $fbBlankIndex }}]"
+                                                   autocomplete="off"
+                                                   maxlength="100"
+                                                   placeholder="blank {{ $fbBlankIndex + 1 }}"
+                                                   oninput="fbCheckAnswered({{ $question->id }})"
+                                                   class="inline-block w-32 px-3 py-1 border-b-2 border-yellow-400 bg-yellow-50 rounded-lg text-sm font-medium text-gray-900 text-center focus:outline-none focus:border-yellow-500 focus:bg-yellow-100 transition">
+                                            @php $fbBlankIndex++ @endphp
+                                        @else
+                                            <span>{{ $fbPart }}</span>
+                                        @endif
+                                    @endforeach
+                                </div>
 
                             {{-- Word Bank --}}
                             @elseif($question->question_type === 'word_bank')
-                                <div class="flex flex-wrap gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg mb-4">
-                                    @foreach($question->word_bank_items ?? [] as $word)
-                                    <span class="px-3 py-1 bg-white border border-yellow-300 rounded-full text-sm font-medium text-gray-700">
+                            @php $qid = $question->id; $wbWords = $question->word_bank_items ?? []; @endphp
+                                {{-- Word chip tray --}}
+                                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Word Bank</p>
+                                <div id="wb-tray-{{ $qid }}"
+                                     class="flex flex-wrap gap-2 p-3 bg-yellow-50 border-2 border-yellow-200 rounded-xl mb-5 min-h-[3rem]">
+                                    @foreach($wbWords as $word)
+                                    <button type="button"
+                                            class="wb-chip px-3 py-1.5 bg-white border-2 border-yellow-400 rounded-full text-sm font-semibold text-yellow-800 hover:bg-yellow-400 hover:text-white transition select-none shadow-sm"
+                                            data-word="{{ $word }}"
+                                            data-qid="{{ $qid }}"
+                                            onclick="wbChipClick(this)">
                                         {{ $word }}
-                                    </span>
+                                    </button>
                                     @endforeach
                                 </div>
+
+                                {{-- Sentences with blank slots --}}
                                 <div class="space-y-3">
                                     @foreach($question->options as $option)
-                                    <div class="flex items-center gap-3 p-3 rounded-xl bg-gray-50">
-                                        <span class="text-sm text-gray-700 flex-1">{{ $option->option_text }}</span>
-                                        <select name="answers[{{ $question->id }}][word_bank][{{ $option->id }}]"
-                                                class="form-input w-40 text-sm"
-                                                onchange="onAnswerChange({{ $question->id }})">
-                                            <option value="">-- Select --</option>
-                                            @foreach($question->word_bank_items ?? [] as $word)
-                                            <option value="{{ $word }}">{{ $word }}</option>
-                                            @endforeach
-                                        </select>
+                                    @php $oid = $option->id; @endphp
+                                    {{-- Hidden input that actually submits the answer --}}
+                                    <input type="hidden"
+                                           name="answers[{{ $qid }}][word_bank][{{ $oid }}]"
+                                           id="wb-val-{{ $qid }}-{{ $oid }}"
+                                           value="">
+                                    <div class="flex items-center gap-2 p-3 rounded-xl bg-gray-50 border border-gray-100 flex-wrap">
+                                        <span class="text-sm text-gray-800 flex-1 min-w-0">{{ $option->option_text }}</span>
+                                        {{-- Drop slot --}}
+                                        <div id="wb-slot-{{ $qid }}-{{ $oid }}"
+                                             class="wb-slot relative flex items-center justify-center min-w-[110px] h-9 border-2 border-dashed border-gray-300 rounded-full bg-white cursor-pointer text-xs text-gray-400 transition hover:border-yellow-400"
+                                             data-qid="{{ $qid }}"
+                                             data-oid="{{ $oid }}"
+                                             onclick="wbSlotClick(this)"
+                                             title="Click to pick a word">
+                                            <span class="wb-slot-label select-none">tap to fill</span>
+                                        </div>
                                     </div>
                                     @endforeach
                                 </div>
@@ -287,11 +318,143 @@
             radio.addEventListener('change', function() {
                 const name = this.name;
                 document.querySelectorAll(`input[name="${name}"]`).forEach(r => {
-                    r.closest('.answer-label')?.classList.remove('border-yellow-400',
-                        'bg-yellow-50');
+                    r.closest('.answer-label')?.classList.remove('border-yellow-400', 'bg-yellow-50');
                 });
                 this.closest('.answer-label')?.classList.add('border-yellow-400', 'bg-yellow-50');
             });
+        });
+
+        // ── Fill in the Blank: mark answered when all inline inputs have a value ─
+        function fbCheckAnswered(questionId) {
+            const inputs = document.querySelectorAll(`input[name^="answers[${questionId}][fb]"]`);
+            const allFilled = [...inputs].every(i => i.value.trim() !== '');
+            if (allFilled && inputs.length > 0) onAnswerChange(questionId);
+        }
+
+        // ── Word Bank: click-to-fill interaction ───────────────────────────────
+        // State: which slot is currently "active" (waiting for a word pick)
+        let wbActiveSlot = null; // { qid, oid, slotEl }
+
+        function wbChipClick(chipEl) {
+            const word = chipEl.dataset.word;
+            const qid  = chipEl.dataset.qid;
+
+            if (wbActiveSlot && wbActiveSlot.qid === qid) {
+                // A slot is waiting — fill it with this word
+                wbFillSlot(wbActiveSlot.slotEl, wbActiveSlot.qid, wbActiveSlot.oid, word, chipEl);
+                wbClearActive();
+            } else {
+                // No active slot: highlight this chip so student knows to pick a slot next
+                wbClearActive();
+                chipEl.classList.add('ring-2', 'ring-yellow-500', 'bg-yellow-400', 'text-white');
+                wbActiveSlot = { qid, oid: null, slotEl: null, chipEl, word };
+            }
+        }
+
+        function wbSlotClick(slotEl) {
+            const qid = slotEl.dataset.qid;
+            const oid = slotEl.dataset.oid;
+
+            if (wbActiveSlot && wbActiveSlot.word && wbActiveSlot.qid === qid) {
+                // A chip is already selected — fill this slot
+                wbFillSlot(slotEl, qid, oid, wbActiveSlot.word, wbActiveSlot.chipEl);
+                wbClearActive();
+            } else {
+                // No chip selected: if slot is filled, return word to tray
+                const currentVal = document.getElementById('wb-val-' + qid + '-' + oid)?.value;
+                if (currentVal) {
+                    wbReturnWordToTray(qid, currentVal);
+                    wbEmptySlot(slotEl, qid, oid);
+                    wbCheckAllFilled(qid);
+                } else {
+                    // Highlight slot to show it's waiting
+                    wbClearActive();
+                    slotEl.classList.add('border-yellow-400', 'bg-yellow-50');
+                    wbActiveSlot = { qid, oid, slotEl, chipEl: null, word: null };
+                }
+            }
+        }
+
+        function wbFillSlot(slotEl, qid, oid, word, chipEl) {
+            // If slot already had a word, return it to tray first
+            const valInput = document.getElementById('wb-val-' + qid + '-' + oid);
+            if (valInput && valInput.value) {
+                wbReturnWordToTray(qid, valInput.value);
+            }
+            // Fill slot visually
+            slotEl.innerHTML = `
+                <span class="text-sm font-semibold text-yellow-800 px-2">${word}</span>
+                <button type="button" onclick="wbClearSlot('${qid}','${oid}')"
+                        class="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-400 text-white rounded-full text-[10px] leading-none flex items-center justify-center hover:bg-red-600">×</button>`;
+            slotEl.classList.remove('border-dashed', 'border-gray-300', 'bg-white', 'border-yellow-400', 'bg-yellow-50');
+            slotEl.classList.add('border-yellow-400', 'bg-yellow-100', 'border-solid');
+            // Set hidden input value
+            if (valInput) valInput.value = word;
+            // Hide chip from tray
+            if (chipEl) chipEl.classList.add('opacity-30', 'pointer-events-none');
+            else wbHideChipByWord(qid, word);
+            wbCheckAllFilled(qid);
+        }
+
+        function wbClearSlot(qid, oid) {
+            const slotEl  = document.getElementById('wb-slot-' + qid + '-' + oid);
+            const valInput = document.getElementById('wb-val-' + qid + '-' + oid);
+            const word = valInput?.value;
+            if (word) wbReturnWordToTray(qid, word);
+            wbEmptySlot(slotEl, qid, oid);
+            wbCheckAllFilled(qid);
+        }
+
+        function wbEmptySlot(slotEl, qid, oid) {
+            const valInput = document.getElementById('wb-val-' + qid + '-' + oid);
+            if (valInput) valInput.value = '';
+            slotEl.innerHTML = '<span class="wb-slot-label select-none">tap to fill</span>';
+            slotEl.classList.remove('border-yellow-400', 'bg-yellow-100', 'border-solid');
+            slotEl.classList.add('border-dashed', 'border-gray-300', 'bg-white');
+        }
+
+        function wbHideChipByWord(qid, word) {
+            const tray = document.getElementById('wb-tray-' + qid);
+            tray?.querySelectorAll('.wb-chip').forEach(chip => {
+                if (chip.dataset.word === word && !chip.classList.contains('pointer-events-none')) {
+                    chip.classList.add('opacity-30', 'pointer-events-none');
+                }
+            });
+        }
+
+        function wbReturnWordToTray(qid, word) {
+            const tray = document.getElementById('wb-tray-' + qid);
+            // Re-enable the FIRST matching grayed-out chip
+            const chip = [...(tray?.querySelectorAll('.wb-chip') ?? [])].find(
+                c => c.dataset.word === word && c.classList.contains('pointer-events-none')
+            );
+            if (chip) {
+                chip.classList.remove('opacity-30', 'pointer-events-none');
+            }
+        }
+
+        function wbClearActive() {
+            if (wbActiveSlot?.chipEl) {
+                wbActiveSlot.chipEl.classList.remove('ring-2', 'ring-yellow-500', 'bg-yellow-400', 'text-white');
+            }
+            if (wbActiveSlot?.slotEl) {
+                wbActiveSlot.slotEl.classList.remove('border-yellow-400', 'bg-yellow-50');
+            }
+            wbActiveSlot = null;
+        }
+
+        function wbCheckAllFilled(qid) {
+            // Mark question as answered if every slot has a value
+            const allFilled = [...document.querySelectorAll(`[id^="wb-val-${qid}-"]`)]
+                .every(inp => inp.value !== '');
+            if (allFilled) onAnswerChange(parseInt(qid));
+        }
+
+        // Click outside clears active chip/slot selection
+        document.addEventListener('click', function(e) {
+            if (wbActiveSlot && !e.target.closest('.wb-chip') && !e.target.closest('.wb-slot')) {
+                wbClearActive();
+            }
         });
     </script>
 @endsection

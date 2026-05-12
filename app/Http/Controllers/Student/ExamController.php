@@ -237,47 +237,34 @@ class ExamController extends Controller
                         ]);
                     })(),
 
-                    'fill_blank' => (function () use ($question, $answerData, $attempt, $gemini, &$totalScore) {
-                        $text = strip_tags(trim($answerData['text'] ?? ''));
+                    'fill_blank' => (function () use ($question, $answerData, $attempt, &$totalScore) {
+                        // Collect answers from inline per-blank inputs: answers[qid][fb][0], [1], …
+                        $fbInputs     = $answerData['fb'] ?? [];
+                        $studentParts = array_map('trim', array_values((array) $fbInputs));
+                        // Store as pipe-joined string for display in result view
+                        $text = implode('|', $studentParts);
 
-                        if (($question->fill_blank_grading ?? 'exact') === 'exact') {
-                            // Split by | for multiple blanks, compare case-insensitively
-                            $correctParts = array_map('trim', explode('|', $question->correct_answer_text ?? ''));
-                            $studentParts = array_map('trim', explode('|', $text));
-                            $total        = count($correctParts);
-                            $matched      = 0;
-                            foreach ($correctParts as $i => $correct) {
-                                $given = strtolower($studentParts[$i] ?? '');
-                                if ($given !== '' && $given === strtolower($correct)) {
-                                    $matched++;
-                                }
+                        $correctParts = array_map('trim', explode('|', $question->correct_answer_text ?? ''));
+                        $total        = count($correctParts);
+                        $matched      = 0;
+                        foreach ($correctParts as $i => $correct) {
+                            $given = strtolower($studentParts[$i] ?? '');
+                            if ($given !== '' && $given === strtolower($correct)) {
+                                $matched++;
                             }
-                            $marksAwarded = $total > 0 ? round(($matched / $total) * $question->marks, 2) : 0;
-                            $isCorrect    = $total > 0 && $matched === $total;
-                            $totalScore  += $marksAwarded;
-                            StudentAnswer::create([
-                                'attempt_id'    => $attempt->id,
-                                'question_id'   => $question->id,
-                                'answer_text'   => mb_substr($text, 0, 500),
-                                'is_correct'    => $isCorrect,
-                                'marks_awarded' => $marksAwarded,
-                                'ai_feedback'   => null,
-                                'ai_evaluated'  => false,
-                            ]);
-                        } else {
-                            // AI path
-                            $result = $gemini->evaluate($text, $question->correct_answer_text ?? '', $question->marks, $question->question_text);
-                            $totalScore += $result['marks'];
-                            StudentAnswer::create([
-                                'attempt_id'    => $attempt->id,
-                                'question_id'   => $question->id,
-                                'answer_text'   => mb_substr($text, 0, 500),
-                                'is_correct'    => $result['marks'] >= $question->marks,
-                                'marks_awarded' => $result['marks'],
-                                'ai_feedback'   => $result['feedback'],
-                                'ai_evaluated'  => true,
-                            ]);
                         }
+                        $marksAwarded = $total > 0 ? round(($matched / $total) * $question->marks, 2) : 0;
+                        $isCorrect    = $total > 0 && $matched === $total;
+                        $totalScore  += $marksAwarded;
+                        StudentAnswer::create([
+                            'attempt_id'    => $attempt->id,
+                            'question_id'   => $question->id,
+                            'answer_text'   => mb_substr($text, 0, 500),
+                            'is_correct'    => $isCorrect,
+                            'marks_awarded' => $marksAwarded,
+                            'ai_feedback'   => null,
+                            'ai_evaluated'  => false,
+                        ]);
                     })(),
 
                     'ai_evaluated' => (function () use ($question, $answerData, $attempt, $gemini, &$totalScore) {
@@ -321,21 +308,26 @@ class ExamController extends Controller
                         ]);
                     })(),
 
-                    'picture' => (function () use ($question, $answerData, $attempt, $gemini, &$totalScore) {
-                        $subAnswers   = $answerData['sub'] ?? [];
+                    'picture' => (function () use ($question, $answerData, $attempt, &$totalScore) {
+                        $subAnswers    = $answerData['sub'] ?? [];
                         $questionMarks = 0;
+                        $allCorrect    = true;
 
                         foreach ($question->subItems as $sub) {
-                            $text   = strip_tags(trim($subAnswers[$sub->id] ?? ''));
-                            $result = $gemini->evaluate($text, $sub->correct_answer, $sub->marks, $sub->sub_question_text);
-                            $questionMarks += $result['marks'];
+                            $text      = strip_tags(trim($subAnswers[$sub->id] ?? ''));
+                            $correct   = strtolower(trim($sub->correct_answer));
+                            $submitted = strtolower(trim($text));
+                            $isCorrect = $submitted !== '' && $submitted === $correct;
+                            $marks     = $isCorrect ? $sub->marks : 0;
+                            if (!$isCorrect) $allCorrect = false;
+                            $questionMarks += $marks;
                             StudentSubAnswer::create([
                                 'attempt_id'    => $attempt->id,
                                 'sub_item_id'   => $sub->id,
                                 'answer_text'   => mb_substr($text, 0, 500),
-                                'marks_awarded' => $result['marks'],
-                                'ai_feedback'   => $result['feedback'],
-                                'ai_evaluated'  => true,
+                                'marks_awarded' => $marks,
+                                'ai_feedback'   => null,
+                                'ai_evaluated'  => false,
                             ]);
                         }
 
@@ -344,8 +336,8 @@ class ExamController extends Controller
                             'attempt_id'    => $attempt->id,
                             'question_id'   => $question->id,
                             'marks_awarded' => $questionMarks,
-                            'ai_evaluated'  => true,
-                            'is_correct'    => false,
+                            'ai_evaluated'  => false,
+                            'is_correct'    => $allCorrect && $question->subItems->isNotEmpty(),
                         ]);
                     })(),
 
