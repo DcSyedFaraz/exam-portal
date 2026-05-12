@@ -294,7 +294,7 @@ final class ExamWorkbookImporterV1
                             $wordBankItems = array_map('trim', explode(',', (string) $row['word_bank_items']));
                         }
 
-                        $question = Question::create([
+                        $attrs = [
                             'exam_id'             => $exam->id,
                             'question_text'       => strip_tags(trim((string) ($row['your_question'] ?? ''))),
                             'question_type'       => $type,
@@ -304,11 +304,15 @@ final class ExamWorkbookImporterV1
                                                         ? strip_tags(trim((string) ($row['correct_answer'] ?? '')))
                                                         : null,
                             'word_bank_items'     => $wordBankItems,
-                            'fill_blank_grading'  => $type === 'fill_blank' ? 'exact' : null,
                             'ai_max_marks'        => $type === 'ai_evaluated'
                                                         ? (int) ($row['marks_for_this_question'] ?? 1)
                                                         : null,
-                        ]);
+                        ];
+                        // Only set fill_blank_grading for fill_blank — let DB default handle other types
+                        if ($type === 'fill_blank') {
+                            $attrs['fill_blank_grading'] = 'exact';
+                        }
+                        $question = Question::create($attrs);
 
                         // Picture: sub-items from "Picture sub-questions" sheet
                         if ($type === 'picture') {
