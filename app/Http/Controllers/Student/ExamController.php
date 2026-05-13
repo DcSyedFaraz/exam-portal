@@ -176,7 +176,43 @@ class ExamController extends Controller
 
             $attempt->answers()->delete();
 
-            foreach ($exam->questions()->with('options', 'subItems')->get() as $question) {
+            $questions = $exam->questions()->with('options', 'subItems')->get();
+
+            // ── Pre-pass: collect all ai_evaluated questions for a single batch call ──
+            $aiBatch  = [];  // index → ['question', 'correct_answer', 'student_answer', 'max_marks', 'question_obj']
+            foreach ($questions as $question) {
+                if ($question->question_type === 'ai_evaluated') {
+                    $answerData = $answers[$question->id] ?? null;
+                    $text = strip_tags(trim($answerData['text'] ?? ''));
+                    $aiBatch[$question->id] = [
+                        'question'       => $question->question_text,
+                        'correct_answer' => $question->correct_answer_text ?? '',
+                        'student_answer' => $text,
+                        'max_marks'      => $question->marks,
+                        'question_obj'   => $question,
+                        'answer_text'    => $text,
+                    ];
+                }
+            }
+
+            // Single Gemini API call for all ai_evaluated questions
+            $aiResults = [];
+            if (! empty($aiBatch)) {
+                $batchItems = [];
+                foreach ($aiBatch as $qid => $item) {
+                    $batchItems[$qid] = [
+                        'question'       => $item['question'],
+                        'correct_answer' => $item['correct_answer'],
+                        'student_answer' => $item['student_answer'],
+                        'max_marks'      => $item['max_marks'],
+                    ];
+                }
+                // evaluateAll returns results keyed by the same keys we passed
+                $aiResults = $gemini->evaluateAll($batchItems);
+            }
+
+            // ── Main loop ────────────────────────────────────────────────────────────
+            foreach ($questions as $question) {
                 $answerData = $answers[$question->id] ?? null;
 
                 match ($question->question_type) {
@@ -267,9 +303,10 @@ class ExamController extends Controller
                         ]);
                     })(),
 
-                    'ai_evaluated' => (function () use ($question, $answerData, $attempt, $gemini, &$totalScore) {
-                        $text   = strip_tags(trim($answerData['text'] ?? ''));
-                        $result = $gemini->evaluate($text, $question->correct_answer_text ?? '', $question->marks, $question->question_text);
+                    'ai_evaluated' => (function () use ($question, $aiBatch, $aiResults, $attempt, &$totalScore) {
+                        // Results already computed via batch call above
+                        $result = $aiResults[$question->id] ?? ['marks' => 0, 'feedback' => 'AI evaluation failed. Pending manual review.'];
+                        $text   = $aiBatch[$question->id]['answer_text'] ?? '';
                         $totalScore += $result['marks'];
                         StudentAnswer::create([
                             'attempt_id'    => $attempt->id,

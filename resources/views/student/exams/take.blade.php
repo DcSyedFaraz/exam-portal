@@ -467,7 +467,7 @@
             <h3 class="text-lg font-bold font-heading text-gray-900 mb-2">Submit Exam?</h3>
             <p class="text-gray-500 text-sm mb-6">Once submitted, you cannot change your answers.</p>
             <div class="flex gap-3">
-                <button onclick="document.getElementById('exam-form').submit()" class="btn-primary flex-1 justify-center">
+                <button onclick="doSubmitExam()" class="btn-primary flex-1 justify-center">
                     Yes, Submit
                 </button>
                 <button onclick="document.getElementById('confirm-modal').classList.add('hidden')"
@@ -477,4 +477,39 @@
             </div>
         </div>
     </div>
+
+    {{-- Grading Overlay (shown while form POST is processing) --}}
+    <div id="submit-overlay" class="fixed inset-0 bg-black/75 z-[60] hidden flex-col items-center justify-center gap-5 text-center px-6">
+        <svg class="animate-spin w-14 h-14 text-yellow-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+        </svg>
+        <div>
+            <p class="text-white text-xl font-bold mb-1">Grading your exam…</p>
+            <p class="text-white/70 text-sm">Please do not close or refresh this window.</p>
+        </div>
+    </div>
+
+    <script>
+        function doSubmitExam() {
+            // Hide confirm modal
+            document.getElementById('confirm-modal').classList.add('hidden');
+            // Show grading overlay
+            const overlay = document.getElementById('submit-overlay');
+            overlay.classList.remove('hidden');
+            overlay.classList.add('flex');
+            // Warn user if they try to navigate away
+            window._submitting = true;
+            // Submit the form
+            document.getElementById('exam-form').submit();
+        }
+
+        // Warn on accidental tab/window close during submission
+        window.addEventListener('beforeunload', function (e) {
+            if (window._submitting) {
+                e.preventDefault();
+                e.returnValue = 'Your exam is being graded. Please do not close this window.';
+            }
+        });
+    </script>
 @endpush
