@@ -486,7 +486,13 @@ function selectTypeCard(clickedLabel) {
 
 function onTypeChange(type) {
     allTypes.forEach(t => {
-        document.getElementById('options-' + t)?.classList.toggle('hidden', t !== type);
+        const section = document.getElementById('options-' + t);
+        if (!section) return;
+        section.classList.toggle('hidden', t !== type);
+        // Disable inputs in hidden sections so they are NOT submitted with the form
+        section.querySelectorAll('input, select, textarea').forEach(el => {
+            el.disabled = (t !== type);
+        });
     });
     const hiddenForShared = ['fill_blank', 'word_bank', 'picture'];
     document.getElementById('wrap-question-text')?.classList.toggle('hidden', hiddenForShared.includes(type));
@@ -504,6 +510,12 @@ document.addEventListener('change', function(e) {
         document.getElementById('tf-false-correct').value = e.target.value === 'false' ? '1' : '0';
     }
 });
+
+// Disable inputs in all inactive sections on page load so they don't pollute the POST data
+(function () {
+    const activeType = document.querySelector('input[name="question_type"]:checked')?.value;
+    if (activeType) onTypeChange(activeType);
+})();
 
 // Set initial is_correct values on page load
 (function () {

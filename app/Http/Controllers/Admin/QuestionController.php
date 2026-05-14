@@ -71,14 +71,19 @@ class QuestionController extends Controller
 
     private function storeLegacy(Request $request, Exam $exam): \Illuminate\Http\RedirectResponse
     {
+        $type         = $request->input('question_type');
+        $correctIndex = (int) $request->input('correct_option_mcq', 0);
+
         $request->validate([
-            'question_text' => 'required|string',
-            'question_type' => 'required|in:mcq,true_false,match',
-            'marks'         => 'required|integer|min:1',
-            'options'       => 'required|array|min:2',
+            'question_text'        => 'required|string',
+            'question_type'        => 'required|in:mcq,true_false,match',
+            'marks'                => 'required|integer|min:1',
+            'options'              => 'required|array|min:2',
             'options.*.text'       => 'required|string',
-            'options.*.is_correct' => 'required',
-        ], [], [
+            'options.*.is_correct' => 'present',
+        ], [
+            'options.min' => 'Please provide at least 2 options.',
+        ], [
             'question_text'        => 'question text',
             'question_type'        => 'question type',
             'marks'                => 'marks',
@@ -87,22 +92,25 @@ class QuestionController extends Controller
             'options.*.is_correct' => 'correct answer selection',
         ]);
 
-        DB::transaction(function () use ($request, $exam, &$question) {
+        DB::transaction(function () use ($request, $exam, $type, $correctIndex, &$question) {
             $order = $exam->questions()->max('order') + 1;
 
             $question = Question::create([
                 'exam_id'       => $exam->id,
                 'question_text' => $request->question_text,
-                'question_type' => $request->question_type,
+                'question_type' => $type,
                 'marks'         => $request->marks,
                 'order'         => $order,
             ]);
 
-            foreach ($request->options as $opt) {
+            foreach ($request->options as $i => $opt) {
                 Option::create([
                     'question_id' => $question->id,
                     'option_text' => $opt['text'],
-                    'is_correct'  => (bool) ($opt['is_correct'] ?? false),
+                    // For MCQ/TF: determine correct from radio index; for match: use is_correct flag
+                    'is_correct'  => $type === 'match'
+                        ? (bool) ($opt['is_correct'] ?? false)
+                        : ($i === $correctIndex),
                     'match_pair'  => $opt['match_pair'] ?? null,
                 ]);
             }
@@ -114,6 +122,7 @@ class QuestionController extends Controller
 
     private function storeNewType(Request $request, Exam $exam, string $type): \Illuminate\Http\RedirectResponse
     {
+
         $rules = [
             'question_type' => 'required|in:picture,fill_blank,word_bank,ai_evaluated',
             'marks'         => 'required|integer|min:1',
@@ -237,13 +246,18 @@ class QuestionController extends Controller
 
     private function updateLegacy(Request $request, Question $question): \Illuminate\Http\RedirectResponse
     {
+        $type         = $question->question_type;
+        $correctIndex = (int) $request->input('correct_option_mcq', 0);
+
         $request->validate([
-            'question_text' => 'required|string',
-            'marks'         => 'required|integer|min:1',
-            'options'       => 'required|array|min:2',
+            'question_text'        => 'required|string',
+            'marks'                => 'required|integer|min:1',
+            'options'              => 'required|array|min:2',
             'options.*.text'       => 'required|string',
-            'options.*.is_correct' => 'required',
-        ], [], [
+            'options.*.is_correct' => 'present',
+        ], [
+            'options.min' => 'Please provide at least 2 options.',
+        ], [
             'question_text'        => 'question text',
             'marks'                => 'marks',
             'options'              => 'options',
@@ -251,7 +265,7 @@ class QuestionController extends Controller
             'options.*.is_correct' => 'correct answer selection',
         ]);
 
-        DB::transaction(function () use ($request, $question) {
+        DB::transaction(function () use ($request, $question, $type, $correctIndex) {
             $question->update([
                 'question_text' => $request->question_text,
                 'marks'         => $request->marks,
@@ -259,11 +273,13 @@ class QuestionController extends Controller
 
             $question->options()->delete();
 
-            foreach ($request->options as $opt) {
+            foreach ($request->options as $i => $opt) {
                 Option::create([
                     'question_id' => $question->id,
                     'option_text' => $opt['text'],
-                    'is_correct'  => (bool) ($opt['is_correct'] ?? false),
+                    'is_correct'  => $type === 'match'
+                        ? (bool) ($opt['is_correct'] ?? false)
+                        : ($i === $correctIndex),
                     'match_pair'  => $opt['match_pair'] ?? null,
                 ]);
             }
