@@ -169,49 +169,49 @@ class ExamController extends Controller
 
         $answers = $request->input('answers', []);
 
-        $gemini = app(GeminiEvaluationService::class);
+        $gemini    = app(GeminiEvaluationService::class);
+        $questions = $exam->questions()->with('options', 'subItems')->get();
 
-        DB::transaction(function () use ($attempt, $exam, $answers, $gemini) {
+        // ── Pre-pass: collect all ai_evaluated questions ──────────────────────────
+        // Done BEFORE opening the DB transaction so the Gemini HTTP call never
+        // holds a MySQL lock (which causes deadlocks on slower connections).
+        $aiBatch = [];
+        foreach ($questions as $question) {
+            if ($question->question_type === 'ai_evaluated') {
+                $answerData = $answers[$question->id] ?? null;
+                $text       = strip_tags(trim($answerData['text'] ?? ''));
+                $aiBatch[$question->id] = [
+                    'question'       => $question->question_text,
+                    'correct_answer' => $question->correct_answer_text ?? '',
+                    'student_answer' => $text,
+                    'max_marks'      => $question->marks,
+                    'answer_text'    => $text,
+                ];
+            }
+        }
+
+        // Single Gemini API call — outside the transaction
+        $aiResults = [];
+        if (! empty($aiBatch)) {
+            $batchItems = [];
+            foreach ($aiBatch as $qid => $item) {
+                $batchItems[$qid] = [
+                    'question'       => $item['question'],
+                    'correct_answer' => $item['correct_answer'],
+                    'student_answer' => $item['student_answer'],
+                    'max_marks'      => $item['max_marks'],
+                ];
+            }
+            $aiResults = $gemini->evaluateAll($batchItems);
+        }
+
+        // ── Transaction: fast DB writes only, no network I/O ─────────────────────
+        DB::transaction(function () use ($attempt, $exam, $answers, $questions, $aiBatch, $aiResults) {
             $totalScore = 0;
 
             $attempt->answers()->delete();
 
-            $questions = $exam->questions()->with('options', 'subItems')->get();
-
-            // ── Pre-pass: collect all ai_evaluated questions for a single batch call ──
-            $aiBatch  = [];  // index → ['question', 'correct_answer', 'student_answer', 'max_marks', 'question_obj']
-            foreach ($questions as $question) {
-                if ($question->question_type === 'ai_evaluated') {
-                    $answerData = $answers[$question->id] ?? null;
-                    $text = strip_tags(trim($answerData['text'] ?? ''));
-                    $aiBatch[$question->id] = [
-                        'question'       => $question->question_text,
-                        'correct_answer' => $question->correct_answer_text ?? '',
-                        'student_answer' => $text,
-                        'max_marks'      => $question->marks,
-                        'question_obj'   => $question,
-                        'answer_text'    => $text,
-                    ];
-                }
-            }
-
-            // Single Gemini API call for all ai_evaluated questions
-            $aiResults = [];
-            if (! empty($aiBatch)) {
-                $batchItems = [];
-                foreach ($aiBatch as $qid => $item) {
-                    $batchItems[$qid] = [
-                        'question'       => $item['question'],
-                        'correct_answer' => $item['correct_answer'],
-                        'student_answer' => $item['student_answer'],
-                        'max_marks'      => $item['max_marks'],
-                    ];
-                }
-                // evaluateAll returns results keyed by the same keys we passed
-                $aiResults = $gemini->evaluateAll($batchItems);
-            }
-
-            // ── Main loop ────────────────────────────────────────────────────────────
+            // ── Main loop ────────────────────────────────────────────────────────
             foreach ($questions as $question) {
                 $answerData = $answers[$question->id] ?? null;
 
