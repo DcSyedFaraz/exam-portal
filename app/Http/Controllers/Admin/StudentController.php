@@ -18,13 +18,24 @@ use Illuminate\View\View;
 
 class StudentController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
+        $search = trim($request->input('search', ''));
+
         $students = User::role('student')
             ->with('studentProfile.parent')
-            ->paginate(15);
+            ->when($search, function ($q) use ($search) {
+                $q->where(function ($q2) use ($search) {
+                    $q2->where('name', 'like', "%{$search}%")
+                       ->orWhereHas('studentProfile', fn($p) =>
+                           $p->where('student_number', 'like', "%{$search}%")
+                       );
+                });
+            })
+            ->paginate(15)
+            ->withQueryString();
 
-        return view('admin.students.index', compact('students'));
+        return view('admin.students.index', compact('students', 'search'));
     }
 
     public function create(): View

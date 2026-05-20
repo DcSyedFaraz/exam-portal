@@ -147,9 +147,14 @@
                             {{-- Picture --}}
                             @elseif($question->question_type === 'picture')
                                 @if($question->image_path)
-                                    <img src="{{ Storage::url($question->image_path) }}"
-                                         alt="Question Image"
-                                         class="w-full max-h-72 object-contain rounded-lg mb-4 border border-gray-200">
+                                    <div class="relative mb-4 group cursor-zoom-in" onclick="openLightbox('{{ Storage::url($question->image_path) }}')">
+                                        <img src="{{ Storage::url($question->image_path) }}"
+                                             alt="Question Image"
+                                             class="w-full max-h-72 object-contain rounded-lg border border-gray-200 transition group-hover:brightness-95">
+                                        <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition pointer-events-none">
+                                            <span class="bg-black/50 text-white text-xs font-semibold px-3 py-1.5 rounded-full">🔍 Click to enlarge</span>
+                                        </div>
+                                    </div>
                                 @endif
                                 <div class="space-y-3">
                                     @foreach($question->subItems as $sub)
@@ -456,10 +461,92 @@
                 wbClearActive();
             }
         });
+
+        // ── Image Lightbox ────────────────────────────────────────────────────
+        let lbScale = 1;
+
+        function openLightbox(src) {
+            const lb  = document.getElementById('img-lightbox');
+            const img = document.getElementById('lb-img');
+            lbScale   = 1;
+            img.style.transform = 'scale(1)';
+            document.getElementById('lb-zoom-label').textContent = '100%';
+            img.src = src;
+            lb.classList.remove('hidden');
+            lb.classList.add('flex');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeLightbox(e) {
+            // Close only when clicking the backdrop (not the image or controls)
+            if (e && e.target !== document.getElementById('img-lightbox')) return;
+            _doCloseLightbox();
+        }
+
+        function _doCloseLightbox() {
+            const lb = document.getElementById('img-lightbox');
+            lb.classList.add('hidden');
+            lb.classList.remove('flex');
+            document.body.style.overflow = '';
+            document.getElementById('lb-img').src = '';
+        }
+
+        function lbZoom(delta) {
+            lbScale = Math.min(5, Math.max(0.25, lbScale + delta));
+            document.getElementById('lb-img').style.transform = `scale(${lbScale})`;
+            document.getElementById('lb-zoom-label').textContent = Math.round(lbScale * 100) + '%';
+        }
+
+        function lbReset() {
+            lbScale = 1;
+            document.getElementById('lb-img').style.transform = 'scale(1)';
+            document.getElementById('lb-zoom-label').textContent = '100%';
+        }
+
+        // Mouse-wheel zoom inside lightbox
+        document.getElementById('lb-scroll')?.addEventListener('wheel', function(e) {
+            if (!document.getElementById('img-lightbox').classList.contains('flex')) return;
+            e.preventDefault();
+            lbZoom(e.deltaY < 0 ? 0.15 : -0.15);
+        }, { passive: false });
+
+        // Close lightbox with Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') _doCloseLightbox();
+        });
     </script>
 @endsection
 
 @push('modals')
+    {{-- Image Lightbox --}}
+    <div id="img-lightbox"
+         class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/85 p-4"
+         onclick="closeLightbox(event)">
+        <button onclick="_doCloseLightbox()"
+                class="absolute top-4 right-4 text-white/80 hover:text-white text-3xl leading-none font-light z-10"
+                aria-label="Close">&times;</button>
+
+        {{-- Zoom controls --}}
+        <div class="absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-3 z-10">
+            <button onclick="lbZoom(-0.25); event.stopPropagation()"
+                    class="w-9 h-9 rounded-full bg-white/20 hover:bg-white/40 text-white text-xl flex items-center justify-center transition">−</button>
+            <span id="lb-zoom-label" class="text-white/80 text-xs w-12 text-center">100%</span>
+            <button onclick="lbZoom(+0.25); event.stopPropagation()"
+                    class="w-9 h-9 rounded-full bg-white/20 hover:bg-white/40 text-white text-xl flex items-center justify-center transition">+</button>
+            <button onclick="lbReset(); event.stopPropagation()"
+                    class="text-white/60 hover:text-white text-xs underline ml-1 transition">Reset</button>
+        </div>
+
+        {{-- Scrollable image container --}}
+        <div id="lb-scroll" class="overflow-auto max-w-full max-h-full flex items-center justify-center"
+             style="max-width:calc(100vw - 2rem); max-height:calc(100vh - 6rem);">
+            <img id="lb-img" src="" alt="Enlarged image"
+                 class="rounded-lg shadow-2xl select-none transition-transform duration-150 origin-top-left"
+                 style="transform-origin: center center;"
+                 draggable="false">
+        </div>
+    </div>
+
     {{-- Confirm Submit Modal --}}
     <div id="confirm-modal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center">

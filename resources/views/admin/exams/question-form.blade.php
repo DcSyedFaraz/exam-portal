@@ -325,7 +325,7 @@
                         @foreach($subRows as $sr)
                         <div class="flex gap-2 items-start p-3 bg-gray-50 rounded-lg flex-wrap picture-sub-row">
                             <select name="sub_labels[]" class="form-input w-16 text-sm">
-                                @foreach(['a','b','c','d','e','f'] as $lbl)
+                                @foreach(range('a','z') as $lbl)
                                 <option {{ $sr['label'] === $lbl ? 'selected' : '' }}>{{ $lbl }}</option>
                                 @endforeach
                             </select>
@@ -633,7 +633,8 @@ function addMatchPair() {
 // ── Add Picture Sub-Question ───────────────────────────────────────────────
 function addSubQuestion() {
     const container = document.getElementById('picture-sub-container');
-    const opts = ['a','b','c','d','e','f'].map(l => `<option>${l}</option>`).join('');
+    const letters = Array.from({length: 26}, (_, i) => String.fromCharCode(97 + i));
+    const opts = letters.map(l => `<option>${l}</option>`).join('');
     const div = document.createElement('div');
     div.className = 'flex gap-2 items-start p-3 bg-gray-50 rounded-lg flex-wrap picture-sub-row';
     div.innerHTML = `
