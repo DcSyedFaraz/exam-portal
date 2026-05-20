@@ -172,14 +172,17 @@ class ExamController extends Controller
         $gemini    = app(GeminiEvaluationService::class);
         $questions = $exam->questions()->with('options', 'subItems')->get();
 
-        // ── Pre-pass: collect all ai_evaluated questions ──────────────────────────
+        // ── Pre-pass: collect ALL AI-graded items for a single Gemini batch call ──
         // Done BEFORE opening the DB transaction so the Gemini HTTP call never
         // holds a MySQL lock (which causes deadlocks on slower connections).
-        $aiBatch = [];
+        $aiBatch   = [];   // keyed by question ID — for ai_evaluated questions
+        $picBatch  = [];   // keyed by "pic_{subItemId}" — for picture sub-questions
+
         foreach ($questions as $question) {
+            $answerData = $answers[$question->id] ?? null;
+
             if ($question->question_type === 'ai_evaluated') {
-                $answerData = $answers[$question->id] ?? null;
-                $text       = strip_tags(trim($answerData['text'] ?? ''));
+                $text = strip_tags(trim($answerData['text'] ?? ''));
                 $aiBatch[$question->id] = [
                     'question'       => $question->question_text,
                     'correct_answer' => $question->correct_answer_text ?? '',
@@ -188,25 +191,50 @@ class ExamController extends Controller
                     'answer_text'    => $text,
                 ];
             }
+
+            if ($question->question_type === 'picture') {
+                $subAnswers = $answerData['sub'] ?? [];
+                foreach ($question->subItems as $sub) {
+                    $text = strip_tags(trim($subAnswers[$sub->id] ?? ''));
+                    $key  = "pic_{$sub->id}";
+                    $picBatch[$key] = [
+                        'question'       => "({$sub->label}) {$sub->sub_question_text}",
+                        'correct_answer' => $sub->correct_answer,
+                        'student_answer' => $text,
+                        'max_marks'      => $sub->marks,
+                        'answer_text'    => $text,
+                        'sub_id'         => $sub->id,
+                    ];
+                }
+            }
         }
 
-        // Single Gemini API call — outside the transaction
+        // Merge into one batch for a single Gemini API call — outside the transaction
+        $allBatchItems = [];
+        foreach ($aiBatch as $qid => $item) {
+            $allBatchItems[$qid] = [
+                'question'       => $item['question'],
+                'correct_answer' => $item['correct_answer'],
+                'student_answer' => $item['student_answer'],
+                'max_marks'      => $item['max_marks'],
+            ];
+        }
+        foreach ($picBatch as $key => $item) {
+            $allBatchItems[$key] = [
+                'question'       => $item['question'],
+                'correct_answer' => $item['correct_answer'],
+                'student_answer' => $item['student_answer'],
+                'max_marks'      => $item['max_marks'],
+            ];
+        }
+
         $aiResults = [];
-        if (! empty($aiBatch)) {
-            $batchItems = [];
-            foreach ($aiBatch as $qid => $item) {
-                $batchItems[$qid] = [
-                    'question'       => $item['question'],
-                    'correct_answer' => $item['correct_answer'],
-                    'student_answer' => $item['student_answer'],
-                    'max_marks'      => $item['max_marks'],
-                ];
-            }
-            $aiResults = $gemini->evaluateAll($batchItems);
+        if (! empty($allBatchItems)) {
+            $aiResults = $gemini->evaluateAll($allBatchItems);
         }
 
         // ── Transaction: fast DB writes only, no network I/O ─────────────────────
-        DB::transaction(function () use ($attempt, $exam, $answers, $questions, $aiBatch, $aiResults) {
+        DB::transaction(function () use ($attempt, $exam, $answers, $questions, $aiBatch, $picBatch, $aiResults) {
             $totalScore = 0;
 
             $attempt->answers()->delete();
@@ -345,26 +373,28 @@ class ExamController extends Controller
                         ]);
                     })(),
 
-                    'picture' => (function () use ($question, $answerData, $attempt, &$totalScore) {
+                    'picture' => (function () use ($question, $answerData, $attempt, $picBatch, $aiResults, &$totalScore) {
                         $subAnswers    = $answerData['sub'] ?? [];
                         $questionMarks = 0;
                         $allCorrect    = true;
 
                         foreach ($question->subItems as $sub) {
-                            $text      = strip_tags(trim($subAnswers[$sub->id] ?? ''));
-                            $correct   = strtolower(trim($sub->correct_answer));
-                            $submitted = strtolower(trim($text));
-                            $isCorrect = $submitted !== '' && $submitted === $correct;
-                            $marks     = $isCorrect ? $sub->marks : 0;
+                            $key    = "pic_{$sub->id}";
+                            $text   = $picBatch[$key]['answer_text'] ?? strip_tags(trim($subAnswers[$sub->id] ?? ''));
+                            $result = $aiResults[$key] ?? ['marks' => 0, 'feedback' => 'AI evaluation failed. Pending manual review.'];
+
+                            $marks     = $result['marks'];
+                            $isCorrect = $marks >= $sub->marks;
                             if (!$isCorrect) $allCorrect = false;
                             $questionMarks += $marks;
+
                             StudentSubAnswer::create([
                                 'attempt_id'    => $attempt->id,
                                 'sub_item_id'   => $sub->id,
                                 'answer_text'   => mb_substr($text, 0, 500),
                                 'marks_awarded' => $marks,
-                                'ai_feedback'   => null,
-                                'ai_evaluated'  => false,
+                                'ai_feedback'   => $result['feedback'],
+                                'ai_evaluated'  => true,
                             ]);
                         }
 
@@ -373,7 +403,7 @@ class ExamController extends Controller
                             'attempt_id'    => $attempt->id,
                             'question_id'   => $question->id,
                             'marks_awarded' => $questionMarks,
-                            'ai_evaluated'  => false,
+                            'ai_evaluated'  => true,
                             'is_correct'    => $allCorrect && $question->subItems->isNotEmpty(),
                         ]);
                     })(),

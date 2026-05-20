@@ -462,24 +462,56 @@
             }
         });
 
-        // ── Image Lightbox ────────────────────────────────────────────────────
+        // ── Image Lightbox (full-screen) ─────────────────────────────────────
         let lbScale = 1;
+        let lbBaseScale = 1; // scale that makes the image fit the screen
 
         function openLightbox(src) {
             const lb  = document.getElementById('img-lightbox');
             const img = document.getElementById('lb-img');
-            lbScale   = 1;
-            img.style.transform = 'scale(1)';
-            document.getElementById('lb-zoom-label').textContent = '100%';
+
+            // Reset state
+            lbScale     = 1;
+            lbBaseScale = 1;
+            img.style.transform = '';
+            img.style.width     = '';
+            img.style.height    = '';
+
             img.src = src;
             lb.classList.remove('hidden');
             lb.classList.add('flex');
             document.body.style.overflow = 'hidden';
+
+            // Once image loads, size it to fill the viewport
+            img.onload = function () {
+                lbFitToScreen();
+                document.getElementById('lb-zoom-label').textContent = 'Fit';
+            };
+        }
+
+        function lbFitToScreen() {
+            const img = document.getElementById('lb-img');
+            const vw  = window.innerWidth;
+            const vh  = window.innerHeight;
+            const nw  = img.naturalWidth;
+            const nh  = img.naturalHeight;
+            if (!nw || !nh) return;
+
+            // Fill the screen: scale so the image covers as much viewport as possible
+            // while still being fully visible (object-contain logic)
+            const ratio = Math.min(vw / nw, vh / nh);
+            img.style.width  = Math.round(nw * ratio) + 'px';
+            img.style.height = Math.round(nh * ratio) + 'px';
+            img.style.transform = 'scale(1)';
+            lbBaseScale = ratio;
+            lbScale = 1;
         }
 
         function closeLightbox(e) {
-            // Close only when clicking the backdrop (not the image or controls)
-            if (e && e.target !== document.getElementById('img-lightbox')) return;
+            // Close only when clicking the backdrop/scroll area (not the controls)
+            if (e && e.target.closest('button, [id="lb-zoom-label"]')) return;
+            if (e && e.target !== document.getElementById('img-lightbox')
+                && e.target !== document.getElementById('lb-scroll')) return;
             _doCloseLightbox();
         }
 
@@ -488,19 +520,26 @@
             lb.classList.add('hidden');
             lb.classList.remove('flex');
             document.body.style.overflow = '';
-            document.getElementById('lb-img').src = '';
+            const img = document.getElementById('lb-img');
+            img.src = '';
+            img.onload = null;
         }
 
         function lbZoom(delta) {
-            lbScale = Math.min(5, Math.max(0.25, lbScale + delta));
+            lbScale = Math.min(5, Math.max(0.5, lbScale + delta));
             document.getElementById('lb-img').style.transform = `scale(${lbScale})`;
-            document.getElementById('lb-zoom-label').textContent = Math.round(lbScale * 100) + '%';
+            document.getElementById('lb-zoom-label').textContent =
+                lbScale === 1 ? 'Fit' : Math.round(lbScale * 100) + '%';
         }
 
         function lbReset() {
             lbScale = 1;
             document.getElementById('lb-img').style.transform = 'scale(1)';
-            document.getElementById('lb-zoom-label').textContent = '100%';
+            document.getElementById('lb-zoom-label').textContent = 'Fit';
+            // Re-center scroll
+            const scroll = document.getElementById('lb-scroll');
+            scroll.scrollTop  = 0;
+            scroll.scrollLeft = 0;
         }
 
         // Mouse-wheel zoom inside lightbox
@@ -518,30 +557,32 @@
 @endsection
 
 @push('modals')
-    {{-- Image Lightbox --}}
+    {{-- Image Lightbox (full-screen) --}}
     <div id="img-lightbox"
-         class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/85 p-4"
+         class="fixed inset-0 z-[70] hidden items-center justify-center bg-black"
          onclick="closeLightbox(event)">
+
+        {{-- Close button --}}
         <button onclick="_doCloseLightbox()"
-                class="absolute top-4 right-4 text-white/80 hover:text-white text-3xl leading-none font-light z-10"
+                class="absolute top-3 right-3 w-10 h-10 rounded-full bg-white/15 hover:bg-white/30 text-white text-2xl flex items-center justify-center z-20 transition"
                 aria-label="Close">&times;</button>
 
         {{-- Zoom controls --}}
-        <div class="absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-3 z-10">
+        <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 z-20 bg-black/60 backdrop-blur-sm rounded-full px-4 py-2">
             <button onclick="lbZoom(-0.25); event.stopPropagation()"
-                    class="w-9 h-9 rounded-full bg-white/20 hover:bg-white/40 text-white text-xl flex items-center justify-center transition">−</button>
-            <span id="lb-zoom-label" class="text-white/80 text-xs w-12 text-center">100%</span>
+                    class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/30 text-white text-lg flex items-center justify-center transition">−</button>
+            <span id="lb-zoom-label" class="text-white/80 text-xs w-14 text-center font-mono">Fit</span>
             <button onclick="lbZoom(+0.25); event.stopPropagation()"
-                    class="w-9 h-9 rounded-full bg-white/20 hover:bg-white/40 text-white text-xl flex items-center justify-center transition">+</button>
+                    class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/30 text-white text-lg flex items-center justify-center transition">+</button>
+            <div class="w-px h-5 bg-white/20 mx-1"></div>
             <button onclick="lbReset(); event.stopPropagation()"
-                    class="text-white/60 hover:text-white text-xs underline ml-1 transition">Reset</button>
+                    class="text-white/60 hover:text-white text-xs transition">Fit</button>
         </div>
 
-        {{-- Scrollable image container --}}
-        <div id="lb-scroll" class="overflow-auto max-w-full max-h-full flex items-center justify-center"
-             style="max-width:calc(100vw - 2rem); max-height:calc(100vh - 6rem);">
+        {{-- Full-screen scrollable image container --}}
+        <div id="lb-scroll" class="w-full h-full overflow-auto flex items-center justify-center">
             <img id="lb-img" src="" alt="Enlarged image"
-                 class="rounded-lg shadow-2xl select-none transition-transform duration-150 origin-top-left"
+                 class="select-none transition-transform duration-150"
                  style="transform-origin: center center;"
                  draggable="false">
         </div>
@@ -585,18 +626,8 @@
             const overlay = document.getElementById('submit-overlay');
             overlay.classList.remove('hidden');
             overlay.classList.add('flex');
-            // Warn user if they try to navigate away
-            window._submitting = true;
             // Submit the form
             document.getElementById('exam-form').submit();
         }
-
-        // Warn on accidental tab/window close during submission
-        window.addEventListener('beforeunload', function (e) {
-            if (window._submitting) {
-                e.preventDefault();
-                e.returnValue = 'Your exam is being graded. Please do not close this window.';
-            }
-        });
     </script>
 @endpush

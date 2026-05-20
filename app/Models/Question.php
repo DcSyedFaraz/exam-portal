@@ -51,6 +51,6 @@ class Question extends Model
 
     public function isAiGraded(): bool
     {
-        return in_array($this->question_type, ['fill_blank', 'ai_evaluated']);
+        return in_array($this->question_type, ['fill_blank', 'ai_evaluated', 'picture']);
     }
 }

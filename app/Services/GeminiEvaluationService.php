@@ -149,7 +149,10 @@ PROMPT;
                 if (! isset($row['index'], $row['marks'], $row['feedback'])) {
                     continue;
                 }
-                $idx      = (int) $row['index'];
+                $idx = $row['index']; // keep as-is (may be int or string like "pic_42")
+                if (! array_key_exists($idx, $items)) {
+                    continue; // skip unknown indices
+                }
                 $maxMarks = (int) ($items[$idx]['max_marks'] ?? 1);
                 $marks    = max(0, min((float) $row['marks'], $maxMarks));
 

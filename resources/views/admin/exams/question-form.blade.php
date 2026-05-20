@@ -262,11 +262,11 @@
                 <input type="hidden" name="fill_blank_grading" value="exact">
             </div>
 
-            {{-- ── Picture (exact match per sub-question) ───────────────────── --}}
+            {{-- ── Picture (AI-graded per sub-question) ──────────────────────── --}}
             <div id="options-picture" class="{{ $type !== 'picture' ? 'hidden' : '' }} mb-5 space-y-4">
-                <div class="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700">
-                    <span class="text-base shrink-0">✓</span>
-                    <span>Each sub-question is graded by <strong>exact match</strong> — the student's answer must match your model answer exactly (case-insensitive) to earn marks.</span>
+                <div class="flex items-start gap-2 p-3 bg-purple-50 border border-purple-200 rounded-xl text-xs text-purple-700">
+                    <span class="text-base shrink-0">🤖</span>
+                    <span>Each sub-question is <strong>graded by AI</strong> — Gemini compares the student's answer against your model answer and awards marks. Partial credit is possible.</span>
                 </div>
                 <div>
                     <label class="form-label">Caption <span class="text-xs text-gray-400">(optional — shown above the image)</span></label>

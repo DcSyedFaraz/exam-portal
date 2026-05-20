@@ -182,18 +182,25 @@
                             @endif
                             <div class="space-y-2">
                                 @foreach($question->subItems as $sub)
-                                @php $subAnswer = $subAnswers[$sub->id] ?? null @endphp
-                                @php $subCorrect = ($subAnswer?->marks_awarded ?? 0) > 0; @endphp
-                                <div class="rounded-lg p-2 bg-white border border-gray-100 text-xs">
+                                @php
+                                    $subAnswer  = $subAnswers[$sub->id] ?? null;
+                                    $subMarks   = $subAnswer?->marks_awarded ?? 0;
+                                    $subFull    = $subMarks >= $sub->marks;
+                                    $subPartial = $subMarks > 0 && !$subFull;
+                                @endphp
+                                <div class="rounded-lg p-2.5 bg-white border {{ $subFull ? 'border-green-200' : ($subPartial ? 'border-amber-200' : 'border-red-200') }} text-xs">
                                     <p class="font-medium text-gray-700">({{ $sub->label }}) {{ $sub->sub_question_text }}</p>
-                                    <p class="mt-0.5 {{ $subCorrect ? 'text-green-700' : 'text-red-600' }}">
-                                        {{ $subCorrect ? '✅' : '❌' }}
+                                    <p class="mt-1 {{ $subFull ? 'text-green-700' : ($subPartial ? 'text-amber-700' : 'text-red-600') }}">
+                                        {{ $subFull ? '✅' : ($subPartial ? '⚡' : '❌') }}
                                         Your answer: <strong>{{ $subAnswer?->answer_text ?? '—' }}</strong>
                                     </p>
-                                    @if(!$subCorrect)
-                                    <p class="text-green-700 mt-0.5">Correct answer: <strong>{{ $sub->correct_answer }}</strong></p>
+                                    @if($subAnswer?->ai_feedback)
+                                    <p class="text-purple-600 mt-1 flex items-start gap-1">
+                                        <span class="shrink-0">🤖</span>
+                                        <span>{{ $subAnswer->ai_feedback }}</span>
+                                    </p>
                                     @endif
-                                    <p class="text-gray-500 mt-0.5">{{ $subAnswer?->marks_awarded ?? 0 }}/{{ $sub->marks }} mark(s)</p>
+                                    <p class="text-gray-500 mt-1">{{ $subMarks }}/{{ $sub->marks }} mark(s)</p>
                                 </div>
                                 @endforeach
                             </div>
