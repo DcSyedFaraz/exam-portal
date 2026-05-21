@@ -2,8 +2,10 @@
 
 namespace App\Providers;
 
+use App\Contracts\AiEvaluationService;
 use App\Models\User;
 use App\Services\GeminiEvaluationService;
+use App\Services\RunwareEvaluationService;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
@@ -14,7 +16,15 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->singleton(GeminiEvaluationService::class);
+        $this->app->singleton(AiEvaluationService::class, function ($app) {
+            return match (config('ai.provider', 'gemini')) {
+                'runware' => new RunwareEvaluationService(),
+                default   => new GeminiEvaluationService(),
+            };
+        });
+
+        // Backward compat: resolve old concrete class name to the interface
+        $this->app->alias(AiEvaluationService::class, GeminiEvaluationService::class);
     }
 
     /**

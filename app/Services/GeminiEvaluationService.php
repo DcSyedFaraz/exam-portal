@@ -2,10 +2,11 @@
 
 namespace App\Services;
 
+use App\Contracts\AiEvaluationService;
 use Gemini\Laravel\Facades\Gemini;
 use Illuminate\Support\Facades\Log;
 
-class GeminiEvaluationService
+class GeminiEvaluationService implements AiEvaluationService
 {
     /**
      * Evaluate a student answer against the correct answer.

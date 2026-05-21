@@ -7,7 +7,7 @@ use App\Models\Exam;
 use App\Models\ExamAttempt;
 use App\Models\StudentAnswer;
 use App\Models\StudentSubAnswer;
-use App\Services\GeminiEvaluationService;
+use App\Contracts\AiEvaluationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -169,7 +169,7 @@ class ExamController extends Controller
 
         $answers = $request->input('answers', []);
 
-        $gemini    = app(GeminiEvaluationService::class);
+        $evaluator = app(AiEvaluationService::class);
         $questions = $exam->questions()->with('options', 'subItems')->get();
 
         // ── Pre-pass: collect ALL AI-graded items for a single Gemini batch call ──
@@ -230,7 +230,7 @@ class ExamController extends Controller
 
         $aiResults = [];
         if (! empty($allBatchItems)) {
-            $aiResults = $gemini->evaluateAll($allBatchItems);
+            $aiResults = $evaluator->evaluateAll($allBatchItems);
         }
 
         // ── Transaction: fast DB writes only, no network I/O ─────────────────────
