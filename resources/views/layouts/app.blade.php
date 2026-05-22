@@ -44,6 +44,7 @@
         {{-- Page Content --}}
         <main class="flex-1 overflow-y-auto p-6 main-content opacity-0 translate-y-2 transition-all duration-300">
             @include('components.toast')
+            @include('components.parent-banner')
             @yield('content')
         </main>
 
