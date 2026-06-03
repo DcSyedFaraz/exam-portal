@@ -231,6 +231,16 @@
                     <p class="text-xs text-gray-400 mt-1">Click <strong>+ Blank</strong> to insert a blank at cursor, or type <code>______</code> manually.</p>
                 </div>
 
+                {{-- Student instructions --}}
+                <div>
+                    <label class="form-label">Instructions for Students <span class="text-xs text-gray-400">(optional)</span></label>
+                    <input type="text" name="fill_blank_instructions"
+                           value="{{ old('fill_blank_instructions', $isEdit && $type === 'fill_blank' ? ($question->fill_blank_instructions ?? '') : '') }}"
+                           placeholder="e.g. Fill in the blanks with the correct word."
+                           class="form-input w-full">
+                    <p class="text-xs text-gray-400 mt-1">Shown to students above this question's blanks.</p>
+                </div>
+
                 {{-- Live preview with inline answer boxes --}}
                 <div id="fb-preview-wrap" class="hidden">
                     <label class="form-label">Correct Answers

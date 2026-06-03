@@ -20,6 +20,7 @@ class Question extends Model
         'word_bank_items',
         'ai_max_marks',
         'fill_blank_grading',
+        'fill_blank_instructions',
     ];
 
     protected function casts(): array

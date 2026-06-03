@@ -180,6 +180,11 @@
                                 $fbParts = preg_split('/(_{4,})/', $question->question_text, -1, PREG_SPLIT_DELIM_CAPTURE);
                                 $fbBlankIndex = 0;
                             @endphp
+                                @if($question->fill_blank_instructions)
+                                <p class="text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 mb-3">
+                                    📝 {{ $question->fill_blank_instructions }}
+                                </p>
+                                @endif
                                 <div class="text-base leading-loose text-gray-900 flex flex-wrap items-center gap-x-1 gap-y-2">
                                     @foreach($fbParts as $fbPart)
                                         @if(preg_match('/^_{4,}$/', $fbPart))

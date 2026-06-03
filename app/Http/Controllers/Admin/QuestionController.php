@@ -211,7 +211,8 @@ class QuestionController extends Controller
             ];
 
             if ($type === 'fill_blank') {
-                $attrs['fill_blank_grading'] = 'exact';
+                $attrs['fill_blank_grading']       = 'exact';
+                $attrs['fill_blank_instructions']  = trim($request->input('fill_blank_instructions', '')) ?: null;
             }
 
             $question = Question::create($attrs);
@@ -357,8 +358,9 @@ class QuestionController extends Controller
             }
 
             if ($type === 'fill_blank') {
-                $updates['correct_answer_text'] = implode('|', array_map('trim', $request->input('fb_answers', [])));
-                $updates['fill_blank_grading']  = 'exact';
+                $updates['correct_answer_text']    = implode('|', array_map('trim', $request->input('fb_answers', [])));
+                $updates['fill_blank_grading']     = 'exact';
+                $updates['fill_blank_instructions'] = trim($request->input('fill_blank_instructions', '')) ?: null;
             }
 
             if ($type === 'ai_evaluated') {

@@ -112,6 +112,9 @@
 
             {{-- Fill in Blank --}}
             @elseif($question->question_type === 'fill_blank')
+                @if($question->fill_blank_instructions)
+                <p class="text-xs text-blue-500 italic mt-1">📝 {{ $question->fill_blank_instructions }}</p>
+                @endif
                 <p class="text-xs text-gray-500 mt-1">
                     Answer: <span class="font-medium text-gray-700">{{ $question->correct_answer_text }}</span>
                 </p>
