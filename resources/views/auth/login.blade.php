@@ -3,7 +3,23 @@
 @section('title', 'Login')
 
 @section('content')
-    <div class="flex flex-col lg:flex-row lg:h-screen lg:overflow-hidden min-h-screen">
+    <div class="flex min-h-screen flex-col">
+        {{-- Header promo ticker --}}
+        <div id="login-parent-ticker"
+            class="w-full overflow-hidden bg-linear-to-r from-yellow-400 via-amber-400 to-yellow-400 text-gray-900 text-xs font-medium shadow-sm">
+            <div class="ticker-track flex whitespace-nowrap py-2.5">
+                <span class="ticker-content inline-block pl-4">
+                    📱❌ Mtoto akipewa simu au iPad, tusimwache atumie muda wote kwenye vitu visivyo na faida
+                    &nbsp;&bull;&nbsp;
+                    📚💻 Msajili mtoto wako kwenye Online Exam Portal yetu afanye mitihani, mazoezi na kujisomea popote alipo
+                    &nbsp;&bull;&nbsp;
+                    😊 <strong>Tuitumie internet kwa elimu na maendeleo ya watoto wetu</strong>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                </span>
+            </div>
+        </div>
+
+        <div class="flex flex-1 flex-col lg:flex-row lg:overflow-hidden">
 
         {{-- Left Panel (hidden on mobile) --}}
         <div class="hidden lg:flex w-1/2 bg-yellow-400 flex-col items-center justify-center px-10 py-6 overflow-y-auto">
@@ -55,19 +71,6 @@
                     </svg>
                     Structured / Essay + Calculations
                 </div>
-            </div>
-
-            {{-- Swahili promo message --}}
-            <div class="mt-4 w-full max-w-sm rounded-xl border border-gray-900/15 bg-gray-900/6 px-4 py-3 shadow-sm space-y-1.5">
-                <p class="text-xs text-gray-900 leading-relaxed">
-                    Mtoto akipewa simu au iPad, tusimwache atumie muda wote kwenye vitu visivyo na faida 📱❌
-                </p>
-                <p class="text-xs text-gray-900 leading-relaxed">
-                    Msajili mtoto wako kwenye Online Exam Portal yetu afanye mitihani, mazoezi na kujisomea popote alipo 📚💻
-                </p>
-                <p class="text-xs text-gray-900 leading-relaxed font-medium">
-                    Tuitumie internet kwa elimu na maendeleo ya watoto wetu 😊
-                </p>
             </div>
 
             {{-- Contact info --}}
@@ -304,9 +307,38 @@
 
             </div>
         </div>
+        </div>
     </div>
 
+    <style>
+        .ticker-track {
+            animation: ticker-scroll 30s linear infinite;
+        }
+
+        .ticker-track:hover {
+            animation-play-state: paused;
+        }
+
+        @keyframes ticker-scroll {
+            0% {
+                transform: translateX(0);
+            }
+
+            100% {
+                transform: translateX(-50%);
+            }
+        }
+    </style>
+
     <script>
+        (function() {
+            const track = document.querySelector('#login-parent-ticker .ticker-track');
+            if (!track) return;
+
+            const content = track.querySelector('.ticker-content');
+            track.appendChild(content.cloneNode(true));
+        })();
+
         function switchTab(tab) {
             const isStaff = tab === 'staff';
             document.getElementById('form-staff').classList.toggle('hidden', !isStaff);
