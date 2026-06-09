@@ -6,7 +6,7 @@
     <div class="flex min-h-screen flex-col">
         {{-- Header promo ticker --}}
         <div id="login-parent-ticker"
-            class="w-full overflow-hidden bg-linear-to-r from-yellow-400 via-amber-400 to-yellow-400 text-gray-900 text-xs font-medium shadow-sm">
+            class="w-full overflow-hidden bg-linear-to-r from-yellow-400 via-amber-400 to-yellow-400 text-gray-900 text-2xl font-medium shadow-sm">
             <div class="ticker-track flex whitespace-nowrap py-2.5">
                 <span class="ticker-content inline-block pl-4">
                     📱❌ Mtoto akipewa simu au iPad, tusimwache atumie muda wote kwenye vitu visivyo na faida
@@ -100,8 +100,6 @@
                         <div class="flex flex-col gap-1 font-medium">
                             <a href="tel:+255744950150"
                                 class="text-gray-900 underline decoration-gray-900/30 underline-offset-2 hover:decoration-gray-900">+255 744 950 150</a>
-                            <a href="tel:+255786283282"
-                                class="text-gray-900 underline decoration-gray-900/30 underline-offset-2 hover:decoration-gray-900">+255 786 283 282</a>
                         </div>
                     </div>
                     <div class="flex items-start gap-2.5 text-xs">
@@ -281,9 +279,6 @@
                                     <a href="tel:+255744950150"
                                         class="text-gray-900 underline decoration-gray-900/30 underline-offset-2">+255 744
                                         950 150</a>
-                                    <a href="tel:+255786283282"
-                                        class="text-gray-900 underline decoration-gray-900/30 underline-offset-2">+255 786
-                                        283 282</a>
                                 </div>
                             </div>
                             <div class="flex items-start gap-3 text-sm">
